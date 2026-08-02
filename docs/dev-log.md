@@ -44,3 +44,22 @@
 - 所有窗口共用 index.html 入口，通过 URL query 参数区分视图
 - 主窗口在 tauri.conf.json 预定义，其他窗口由 Rust 端动态创建
 - WindowConfig 封装各窗口类型的默认配置（尺寸/全屏/置顶/边框/可调整）
+
+## M3: 交互式截图浮层 (2026-08-02)
+
+### 完成内容
+- TDD: 10 个测试覆盖截图浮层全流程（初始状态/拖拽选区/确认截图/取消截图）
+- 实现鼠标拖拽选区：mousedown/mousemove/mouseup 事件链
+- 实时选区预览框：支持正向和反向拖拽，自动计算左上角原点和尺寸
+- 操作栏：确认（调用 captureRegion）/取消（清除选区）
+- 截图结果展示：Base64 PNG data URL 渲染预览
+- 错误处理：截图失败显示错误提示条
+
+### 验证结果
+- npm test: 23 passed (10 CaptureView + 8 App + 5 capture.service)
+- npm run build: 成功
+
+### 关键决策
+- 选区框使用 pointerEvents: 'none'，避免遮挡鼠标事件
+- 操作栏在选区右下方 8px 偏移显示
+- 截图结果覆盖全屏展示，关闭后回到浮层可重新截图
