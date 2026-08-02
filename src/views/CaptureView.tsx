@@ -23,6 +23,7 @@ import { saveToFile, copyToClipboard } from '../services/capture.service'
 import type { CaptureRegion, ScreenshotResult } from '../types/capture'
 import { toDataUrl } from '../types/capture'
 import { useAnnotations } from '../hooks/useAnnotations'
+import { composeImage } from '../utils/composeImage'
 
 /// 选区状态
 interface SelectionRect {
@@ -120,7 +121,14 @@ export default function CaptureView() {
     if (!result) return
     setSaving(true)
     try {
-      const path = await saveToFile(result.imageData)
+      const composed = await composeImage(
+        toDataUrl(result),
+        annotations,
+        result.width,
+        result.height,
+      )
+      const base64 = composed.split(',')[1]
+      const path = await saveToFile(base64)
       setMessage(`已保存到: ${path}`)
       setTimeout(() => setMessage(null), 3000)
     } catch (err) {
@@ -128,13 +136,20 @@ export default function CaptureView() {
     } finally {
       setSaving(false)
     }
-  }, [result])
+  }, [result, annotations])
 
   const handleCopy = useCallback(async () => {
     if (!result) return
     setCopying(true)
     try {
-      await copyToClipboard(result.imageData)
+      const composed = await composeImage(
+        toDataUrl(result),
+        annotations,
+        result.width,
+        result.height,
+      )
+      const base64 = composed.split(',')[1]
+      await copyToClipboard(base64)
       setMessage('已复制到剪贴板')
       setTimeout(() => setMessage(null), 2000)
     } catch (err) {
@@ -142,7 +157,7 @@ export default function CaptureView() {
     } finally {
       setCopying(false)
     }
-  }, [result])
+  }, [result, annotations])
 
   /// 在结果图上点击：添加标注
   const handleResultClick = useCallback(

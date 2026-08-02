@@ -122,3 +122,21 @@
 - 数字圆圈半径 20px，白色描边 2px
 - 文字标注用矩形背景 + 文字，宽度根据文字长度计算
 - 默认红色 #F44336，符合需求
+
+## M6.1: 标注合成到图片 (2026-08-02)
+
+### 完成内容
+- 创建 composeImage 工具函数：Canvas 绘制原图 + 标注 → 返回 data URL
+- 数字标注：Canvas arc 圆圈 + fillText 数字
+- 文字标注：fillRect 背景 + fillText 文字
+- CaptureView 保存/复制时先调用 composeImage 合成标注，再传给后端
+- TDD: 7 个 composeImage 测试 + 2 个更新测试
+
+### 验证结果
+- npm test: 66 passed
+- npm run build: 成功
+
+### 关键决策
+- composeImage 使用 Canvas 2D API，与 SVG 渲染逻辑保持一致
+- 合成后提取 Base64（去掉 data URL 前缀），传给后端 saveToFile / copyToClipboard
+- 无标注时 composeImage 仍然执行（drawImage + toDataURL），保持统一路径

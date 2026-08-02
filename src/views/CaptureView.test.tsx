@@ -14,6 +14,12 @@ vi.mock('../services/capture.service', () => ({
   copyToClipboard: (...args: unknown[]) => copyToClipboardMock(...args),
 }))
 
+// 模拟 composeImage
+const composeImageMock = vi.fn()
+vi.mock('../utils/composeImage', () => ({
+  composeImage: (...args: unknown[]) => composeImageMock(...args),
+}))
+
 // 模拟 window.service（截图完成后关闭窗口）
 const closeWindowMock = vi.fn()
 vi.mock('../services/window.service', () => ({
@@ -42,6 +48,7 @@ describe('CaptureView 交互式截图浮层', () => {
     captureRegionMock.mockResolvedValue(fakeResult)
     saveToFileMock.mockResolvedValue('/home/user/snapmaster_123.png')
     copyToClipboardMock.mockResolvedValue(undefined)
+    composeImageMock.mockResolvedValue('data:image/png;base64,composedData')
   })
 
   describe('初始状态', () => {
@@ -161,7 +168,7 @@ describe('CaptureView 交互式截图浮层', () => {
       })
     })
 
-    it('点击保存按钮应调用 saveToFile', async () => {
+    it('点击保存按钮应先合成标注再调用 saveToFile', async () => {
       renderView()
       const overlay = screen.getByTestId('capture-overlay')
       fireEvent.mouseDown(overlay, { clientX: 100, clientY: 100 })
@@ -176,7 +183,8 @@ describe('CaptureView 交互式截图浮层', () => {
       fireEvent.click(screen.getByTestId('save-to-file'))
 
       await waitFor(() => {
-        expect(saveToFileMock).toHaveBeenCalledWith('iVBORw0KGgo=')
+        expect(composeImageMock).toHaveBeenCalled()
+        expect(saveToFileMock).toHaveBeenCalledWith('composedData')
       })
     })
   })
@@ -195,7 +203,7 @@ describe('CaptureView 交互式截图浮层', () => {
       })
     })
 
-    it('点击复制按钮应调用 copyToClipboard', async () => {
+    it('点击复制按钮应先合成标注再调用 copyToClipboard', async () => {
       renderView()
       const overlay = screen.getByTestId('capture-overlay')
       fireEvent.mouseDown(overlay, { clientX: 100, clientY: 100 })
@@ -210,7 +218,8 @@ describe('CaptureView 交互式截图浮层', () => {
       fireEvent.click(screen.getByTestId('copy-to-clipboard'))
 
       await waitFor(() => {
-        expect(copyToClipboardMock).toHaveBeenCalledWith('iVBORw0KGgo=')
+        expect(composeImageMock).toHaveBeenCalled()
+        expect(copyToClipboardMock).toHaveBeenCalledWith('composedData')
       })
     })
   })
