@@ -165,3 +165,49 @@
 - CAPTURE_SHORTCUT 常量前后端共用同一值，避免不一致（修复了 MainView 原硬编码 Ctrl+Shift+A 的错误）
 - 截图窗口 label 用时间戳后缀保证唯一，支持多次触发不冲突
 - on_shortcut 仅响应 Pressed 状态，避免释放时重复触发
+
+## M8: 快捷键用户自定义 (2026-08-02)
+
+### 完成内容
+- Rust: tauri-plugin-store 依赖，配置持久化到 config.json
+- Rust: shortcut_config 模块（ShortcutAction 枚举 + ShortcutConfig 配置）
+  - 默认值：screenshot=Ctrl+Shift+S / recorder=Ctrl+Shift+R / pin=Ctrl+Shift+P / color-picker=Ctrl+Shift+C
+  - load/save 读写 store，缺失字段回退默认值
+  - 10 个单元测试
+- Rust: shortcut_service 重构为多快捷键动态注册/注销
+  - register_one / unregister_one / register_all / update_shortcut
+  - 4 个动作各自打开对应窗口（复用 WindowConfig）
+  - 4 个单元测试
+- Rust: shortcut_cmd 命令层
+  - get_shortcuts: 返回当前配置
+  - update_shortcut: 注销旧+注册新+持久化（先注册成功再保存，失败不破坏配置）
+  - 2 个签名测试
+- Rust: lib.rs 注册 store 插件，setup 加载配置并 register_all
+- 前端: shortcut.service 扩展
+  - ShortcutAction/ShortcutConfig 类型 + DEFAULT_SHORTCUTS 默认值
+  - getShortcuts / updateShortcut / getShortcutByAction
+  - 9 个测试
+- 前端: HotkeyRecorder 录制式捕获组件
+  - 点击进入录制，监听 window keydown 捕获组合键
+  - normalizeKey/formatShortcut 工具函数（修饰键顺序 Ctrl+Shift+Alt+Super）
+  - 至少一个修饰键、Esc 取消、纯修饰键忽略
+  - 19 个测试
+- 前端: SettingsView 设置弹窗
+  - 4 个功能项 + HotkeyRecorder，加载配置/捕获后更新/错误提示
+  - 9 个测试
+- 主窗口: MainView 加齿轮入口 + Dialog，卡片快捷键提示从配置动态读取
+  - 设置关闭后重新加载配置同步更新卡片
+  - 10 个测试
+
+### 验证结果
+- npm test: 109 passed (10 test files)
+- cargo test: 50 passed
+- npm run build: 成功
+
+### 关键决策
+- 持久化用 tauri-plugin-store 官方插件，配置存 config.json 的 "shortcuts" key
+- 更新快捷键时先注册新值成功再持久化，注册失败保持原配置不破坏
+- 录制式捕获：按下组合键自动识别，强制至少一个修饰键避免单键冲突
+- 修饰键固定顺序 Ctrl+Shift+Alt+Super，与 Tauri Shortcut 解析一致
+- MainView 卡片快捷键从后端配置动态读取，设置变更后同步刷新
+- ShortcutConfig 字段 color-picker 用 kebab-case 序列化，与 action 标识一致

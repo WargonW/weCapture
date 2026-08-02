@@ -9,6 +9,7 @@ pub mod commands;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_store::Builder::new().build())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -17,8 +18,9 @@ pub fn run() {
                         .build(),
                 )?;
             }
-            // 注册全局快捷键（Ctrl+Shift+S 触发截图）
-            services::shortcut_service::register_shortcuts(app.handle())
+            // 加载用户快捷键配置并注册全局快捷键
+            let config = services::shortcut_config::ShortcutConfig::load(app.handle());
+            services::shortcut_service::register_all(app.handle(), &config)
                 .map_err(|e| Box::<dyn std::error::Error>::from(e))?;
             Ok(())
         })
@@ -31,6 +33,8 @@ pub fn run() {
             commands::capture_cmd::monitor_count,
             commands::storage_cmd::save_to_file,
             commands::storage_cmd::copy_to_clipboard,
+            commands::shortcut_cmd::get_shortcuts,
+            commands::shortcut_cmd::update_shortcut,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
