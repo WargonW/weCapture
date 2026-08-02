@@ -32,6 +32,20 @@ vi.mock('./services/pin.service', () => ({
   closePinWindow: vi.fn().mockResolvedValue(undefined),
 }))
 
+// 模拟 color.service（ColorPickerView 依赖）
+vi.mock('./services/color.service', () => ({
+  capturePixel: vi.fn().mockResolvedValue({ r: 0, g: 0, b: 0 }),
+  toHex: () => '#000000',
+  toRgbString: () => 'rgb(0,0,0)',
+  copyText: vi.fn().mockResolvedValue(undefined),
+}))
+
+// 模拟 window.service（ColorPickerView 关闭窗口依赖）
+vi.mock('./services/window.service', () => ({
+  createWindow: vi.fn().mockResolvedValue('mock-window'),
+  closeWindow: vi.fn().mockResolvedValue(undefined),
+}))
+
 const theme = createTheme()
 
 const renderApp = (initialPath: string = '/') =>

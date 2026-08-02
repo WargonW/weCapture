@@ -30,6 +30,7 @@ pub fn run() {
             commands::window_cmd::set_always_on_top,
             commands::capture_cmd::capture_fullscreen,
             commands::capture_cmd::capture_region,
+            commands::capture_cmd::capture_pixel,
             commands::capture_cmd::monitor_count,
             commands::storage_cmd::save_to_file,
             commands::storage_cmd::copy_to_clipboard,

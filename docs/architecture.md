@@ -45,7 +45,7 @@ src-tauri/                     # Rust 后端
 │   │   ├── shortcut_config.rs # 快捷键配置模型 + store 持久化
 │   │   ├── shortcut_service.rs # 全局快捷键注册/注销/更新
 │   │   ├── pin_service.rs     # 贴图数据内存缓存（stash/take）
-│   │   └── color_picker.rs    # (后续) 屏幕取色
+│   │   └── color_picker.rs    # (后续) 屏幕取色（已在 capture_service 实现）
 │   │
 │   ├── commands/              # [接口层] Tauri Commands
 │   │   ├── capture_cmd.rs     # (后续) 截图命令

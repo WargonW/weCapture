@@ -247,3 +247,37 @@
 - 调整大小用自定义右下角手柄 + setSize(LogicalSize)，不依赖系统缩放，体验一致
 - 窗口尺寸下限 80x60，防止缩到不可见
 - 贴图入口仅在截图结果页，符合主流程，避免过度设计
+
+## M10: 取色器功能 (2026-08-02)
+
+### 完成内容
+- Rust: core/color.rs RgbColor 模型（to_hex/to_rgb_string/from_hex，8 个测试）
+- Rust: capture_service 加 capture_pixel(x,y) 截屏读像素 RGBA → RGB
+  - 复用 primary_monitor 抽取主显示器查找逻辑
+  - 坐标越界/负数校验
+- Rust: capture_cmd 加 capture_pixel 命令（负数拒绝 + 签名测试）
+- Rust: window_config ColorPicker 改为全屏无边框（透明遮罩预览模式）
+- 前端: color.service（capturePixel/toHex/toRgbString/copyText）
+  - copyText 优先 navigator.clipboard，失败回退 execCommand
+  - 6 个测试
+- 前端: ColorPickerView 全屏取色器
+  - 鼠标移动节流取色（60ms），调用 capturePixel(screenX, screenY)
+  - 放大镜跟随鼠标：颜色预览块 + HEX/RGB 色值
+  - 点击采集：复制 HEX 到剪贴板 → 300ms 后关闭窗口
+  - Esc 取消关闭
+  - 顶部提示「点击采集 · Esc 取消」
+  - 14 个测试
+- App.test 补 color.service / window.service mock
+
+### 验证结果
+- npm test: 160 passed (14 test files)
+- cargo test: 61 passed
+- npm run build: 成功
+
+### 关键决策
+- 取色器窗口改为全屏透明遮罩（rgba(0,0,0,0.01)），与截图窗口模式一致，鼠标移动实时预览
+- 取色用 screenX/screenY 屏幕坐标（非 clientX），因为 capture_pixel 截的是主显示器全屏
+- 节流 60ms 避免高频截图取色拖慢性能
+- 复制用浏览器 Clipboard API，失败回退 execCommand，不依赖后端 base64 接口
+- 点击采集后延时 300ms 关闭，让用户看到「已复制」提示
+- RgbColor 放 core 层纯模型，to_hex 大写格式，from_hex 支持可选 # 和大小写

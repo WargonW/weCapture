@@ -1,5 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 /// RGB 颜色值
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RgbColor {
     pub r: u8,
     pub g: u8,
@@ -11,24 +14,26 @@ impl RgbColor {
         Self { r, g, b }
     }
 
-    /// 转换为 HEX 字符串，如 "#FF8800"
+    /// 转为 #RRGGBB 格式（大写）
     pub fn to_hex(&self) -> String {
         format!("#{:02X}{:02X}{:02X}", self.r, self.g, self.b)
     }
 
-    /// 从 HEX 字符串解析，支持 "#FF8800" 或 "FF8800"
-    pub fn from_hex(hex: &str) -> Result<Self, String> {
-        let hex = hex.trim_start_matches('#');
-        if hex.len() != 6 {
-            return Err(format!("无效的 HEX 颜色长度: {}", hex));
+    /// 转为 rgb(r,g,b) 格式
+    pub fn to_rgb_string(&self) -> String {
+        format!("rgb({},{},{})", self.r, self.g, self.b)
+    }
+
+    /// 从 #RRGGBB 解析（支持大小写，可选 #）
+    pub fn from_hex(hex: &str) -> Option<Self> {
+        let s = hex.trim_start_matches('#');
+        if s.len() != 6 {
+            return None;
         }
-        let r = u8::from_str_radix(&hex[0..2], 16)
-            .map_err(|e| format!("解析红色通道失败: {}", e))?;
-        let g = u8::from_str_radix(&hex[2..4], 16)
-            .map_err(|e| format!("解析绿色通道失败: {}", e))?;
-        let b = u8::from_str_radix(&hex[4..6], 16)
-            .map_err(|e| format!("解析蓝色通道失败: {}", e))?;
-        Ok(Self { r, g, b })
+        let r = u8::from_str_radix(&s[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&s[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&s[4..6], 16).ok()?;
+        Some(Self { r, g, b })
     }
 }
 
@@ -37,50 +42,60 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_rgb_to_hex() {
-        let color = RgbColor::new(255, 136, 0);
-        assert_eq!(color.to_hex(), "#FF8800");
+    fn test_new() {
+        let c = RgbColor::new(255, 128, 0);
+        assert_eq!(c.r, 255);
+        assert_eq!(c.g, 128);
+        assert_eq!(c.b, 0);
     }
 
     #[test]
-    fn test_rgb_to_hex_black() {
-        let color = RgbColor::new(0, 0, 0);
-        assert_eq!(color.to_hex(), "#000000");
+    fn test_to_hex() {
+        assert_eq!(RgbColor::new(255, 0, 0).to_hex(), "#FF0000");
+        assert_eq!(RgbColor::new(0, 255, 0).to_hex(), "#00FF00");
+        assert_eq!(RgbColor::new(0, 0, 255).to_hex(), "#0000FF");
+        assert_eq!(RgbColor::new(255, 255, 255).to_hex(), "#FFFFFF");
+        assert_eq!(RgbColor::new(0, 0, 0).to_hex(), "#000000");
+        assert_eq!(RgbColor::new(18, 52, 86).to_hex(), "#123456");
     }
 
     #[test]
-    fn test_rgb_to_hex_white() {
-        let color = RgbColor::new(255, 255, 255);
-        assert_eq!(color.to_hex(), "#FFFFFF");
+    fn test_to_rgb_string() {
+        assert_eq!(RgbColor::new(255, 0, 0).to_rgb_string(), "rgb(255,0,0)");
+        assert_eq!(RgbColor::new(18, 52, 86).to_rgb_string(), "rgb(18,52,86)");
     }
 
     #[test]
-    fn test_from_hex_with_hash() {
-        let color = RgbColor::from_hex("#FF8800").unwrap();
-        assert_eq!(color, RgbColor::new(255, 136, 0));
+    fn test_from_hex_valid() {
+        assert_eq!(RgbColor::from_hex("#FF0000"), Some(RgbColor::new(255, 0, 0)));
+        assert_eq!(RgbColor::from_hex("#ff0000"), Some(RgbColor::new(255, 0, 0)));
+        assert_eq!(RgbColor::from_hex("FF0000"), Some(RgbColor::new(255, 0, 0)));
+        assert_eq!(RgbColor::from_hex("#123456"), Some(RgbColor::new(18, 52, 86)));
     }
 
     #[test]
-    fn test_from_hex_without_hash() {
-        let color = RgbColor::from_hex("FF8800").unwrap();
-        assert_eq!(color, RgbColor::new(255, 136, 0));
-    }
-
-    #[test]
-    fn test_from_hex_invalid_length() {
-        assert!(RgbColor::from_hex("#FF88").is_err());
-    }
-
-    #[test]
-    fn test_from_hex_invalid_chars() {
-        assert!(RgbColor::from_hex("#GG8800").is_err());
+    fn test_from_hex_invalid() {
+        assert_eq!(RgbColor::from_hex("#FFF"), None); // 太短
+        assert_eq!(RgbColor::from_hex("#GGGGGG"), None); // 非法字符
+        assert_eq!(RgbColor::from_hex(""), None);
+        assert_eq!(RgbColor::from_hex("#12345"), None); // 5 位
     }
 
     #[test]
     fn test_hex_roundtrip() {
-        let original = RgbColor::new(128, 64, 200);
-        let hex = original.to_hex();
-        let parsed = RgbColor::from_hex(&hex).unwrap();
-        assert_eq!(original, parsed);
+        let c = RgbColor::new(123, 45, 67);
+        let hex = c.to_hex();
+        assert_eq!(RgbColor::from_hex(&hex), Some(c));
+    }
+
+    #[test]
+    fn test_serde() {
+        let c = RgbColor::new(255, 128, 0);
+        let json = serde_json::to_string(&c).unwrap();
+        assert!(json.contains("\"r\":255"));
+        assert!(json.contains("\"g\":128"));
+        assert!(json.contains("\"b\":0"));
+        let c2: RgbColor = serde_json::from_str(&json).unwrap();
+        assert_eq!(c, c2);
     }
 }

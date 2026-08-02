@@ -99,10 +99,10 @@ impl WindowConfig {
                 label: "color-picker".to_string(),
                 window_type,
                 title: "取色器".to_string(),
-                width: 160,
-                height: 64,
-                fullscreen: false,
-                always_on_top: true,
+                width: 1920,
+                height: 1080,
+                fullscreen: true,
+                always_on_top: false,
                 decorations: false,
                 resizable: false,
             },
@@ -180,10 +180,10 @@ mod tests {
     #[test]
     fn test_color_picker_config() {
         let config = WindowConfig::from_type(WindowType::ColorPicker);
-        assert!(config.always_on_top);
+        // 全屏透明遮罩预览模式
+        assert!(config.fullscreen);
         assert!(!config.decorations);
-        assert_eq!(config.width, 160);
-        assert_eq!(config.height, 64);
+        assert!(!config.always_on_top);
     }
 
     #[test]
