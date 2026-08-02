@@ -63,3 +63,18 @@
 - 选区框使用 pointerEvents: 'none'，避免遮挡鼠标事件
 - 操作栏在选区右下方 8px 偏移显示
 - 截图结果覆盖全屏展示，关闭后回到浮层可重新截图
+
+## M4: 主窗口功能卡片点击联动 (2026-08-02)
+
+### 完成内容
+- TDD: 4个测试覆盖主窗口卡片点击（截图/录屏/贴图/取色）
+- 实现 MainView 卡片点击事件，调用 createWindow 打开对应窗口
+- 错误处理：捕获并记录窗口创建失败
+
+### 验证结果
+- npm test: 27 passed (4 MainView + 10 CaptureView + 8 App + 5 capture.service)
+- npm run build: 成功
+
+### 关键决策
+- 使用 async/await 处理 createWindow 调用
+- 错误通过 console.error 记录，不阻断用户交互

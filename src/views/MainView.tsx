@@ -4,6 +4,7 @@ import VideocamIcon from '@mui/icons-material/Videocam'
 import PushPinIcon from '@mui/icons-material/PushPin'
 import ColorizeIcon from '@mui/icons-material/Colorize'
 import type { FeatureEntry } from '../types/window'
+import { createWindow } from '../services/window.service'
 
 const FEATURES: FeatureEntry[] = [
   { id: 'screenshot', label: '截图', icon: 'ScreenshotMonitor', windowType: 'capture', shortcut: 'Ctrl+Shift+A' },
@@ -20,6 +21,14 @@ const ICON_MAP: Record<string, React.ReactElement> = {
 }
 
 export default function MainView() {
+  const handleFeatureClick = async (windowType: string) => {
+    try {
+      await createWindow(windowType)
+    } catch (error) {
+      console.error('创建窗口失败:', error)
+    }
+  }
+
   return (
     <Box
       sx={{
@@ -49,7 +58,10 @@ export default function MainView() {
       >
         {FEATURES.map((feature) => (
           <Card key={feature.id} elevation={2}>
-            <CardActionArea sx={{ p: 2, textAlign: 'center' }}>
+            <CardActionArea
+              sx={{ p: 2, textAlign: 'center' }}
+              onClick={() => handleFeatureClick(feature.windowType)}
+            >
               <Stack alignItems="center" spacing={1}>
                 {ICON_MAP[feature.icon]}
                 <Typography variant="body1" fontWeight="medium">
