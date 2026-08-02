@@ -26,6 +26,12 @@ vi.mock('../services/window.service', () => ({
   closeWindow: (...args: unknown[]) => closeWindowMock(...args),
 }))
 
+// 模拟 pin.service
+const pinImageMock = vi.fn()
+vi.mock('../services/pin.service', () => ({
+  pinImage: (...args: unknown[]) => pinImageMock(...args),
+}))
+
 const theme = createTheme()
 
 const renderView = () =>
@@ -49,6 +55,7 @@ describe('CaptureView 交互式截图浮层', () => {
     saveToFileMock.mockResolvedValue('/home/user/snapmaster_123.png')
     copyToClipboardMock.mockResolvedValue(undefined)
     composeImageMock.mockResolvedValue('data:image/png;base64,composedData')
+    pinImageMock.mockResolvedValue('pin-123')
   })
 
   describe('初始状态', () => {
@@ -220,6 +227,60 @@ describe('CaptureView 交互式截图浮层', () => {
       await waitFor(() => {
         expect(composeImageMock).toHaveBeenCalled()
         expect(copyToClipboardMock).toHaveBeenCalledWith('composedData')
+      })
+    })
+  })
+
+  describe('贴图到桌面', () => {
+    it('截图结果页应显示贴图按钮', async () => {
+      renderView()
+      const overlay = screen.getByTestId('capture-overlay')
+      fireEvent.mouseDown(overlay, { clientX: 100, clientY: 100 })
+      fireEvent.mouseMove(overlay, { clientX: 300, clientY: 200 })
+      fireEvent.mouseUp(overlay)
+      fireEvent.click(screen.getByTestId('confirm-capture'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pin-to-desktop')).toBeInTheDocument()
+      })
+    })
+
+    it('点击贴图按钮应先合成标注再调用 pinImage', async () => {
+      renderView()
+      const overlay = screen.getByTestId('capture-overlay')
+      fireEvent.mouseDown(overlay, { clientX: 100, clientY: 100 })
+      fireEvent.mouseMove(overlay, { clientX: 300, clientY: 200 })
+      fireEvent.mouseUp(overlay)
+      fireEvent.click(screen.getByTestId('confirm-capture'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pin-to-desktop')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByTestId('pin-to-desktop'))
+
+      await waitFor(() => {
+        expect(composeImageMock).toHaveBeenCalled()
+        expect(pinImageMock).toHaveBeenCalledWith('data:image/png;base64,composedData')
+      })
+    })
+
+    it('贴图成功应显示提示', async () => {
+      renderView()
+      const overlay = screen.getByTestId('capture-overlay')
+      fireEvent.mouseDown(overlay, { clientX: 100, clientY: 100 })
+      fireEvent.mouseMove(overlay, { clientX: 300, clientY: 200 })
+      fireEvent.mouseUp(overlay)
+      fireEvent.click(screen.getByTestId('confirm-capture'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pin-to-desktop')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByTestId('pin-to-desktop'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('capture-message')).toHaveTextContent('已贴图到桌面')
       })
     })
   })

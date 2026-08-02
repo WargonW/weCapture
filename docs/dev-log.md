@@ -211,3 +211,39 @@
 - 修饰键固定顺序 Ctrl+Shift+Alt+Super，与 Tauri Shortcut 解析一致
 - MainView 卡片快捷键从后端配置动态读取，设置变更后同步刷新
 - ShortcutConfig 字段 color-picker 用 kebab-case 序列化，与 action 标识一致
+
+## M9: 贴图功能 (2026-08-02)
+
+### 完成内容
+- Rust: pin_service 内存缓存（全局 Mutex<HashMap>）
+  - stash(label, data_url) / take(label) 取后即删 / clear
+  - 6 个单元测试
+- Rust: pin_cmd 命令层 stash_pin_image / take_pin_image（2 个签名 + 2 个行为测试）
+- Rust: lib.rs 注册 pin 命令
+- 前端: pin.service（pinImage 先暂存再建窗 / takePinImage / closePinWindow）
+  - label 生成：前端 suffix=时间戳，Rust with_unique_label 拼 pin-{suffix}，stash 用完整 label 保证一致
+  - 8 个测试
+- CaptureView 结果页加"贴图"按钮：合成标注后调用 pinImage（3 个测试）
+- 前端: PinView 贴图视图
+  - 启动 takePinImage(label) 加载数据，loading/error 状态
+  - 拖动移动：鼠标按下图片调用 win.startDragging()
+  - 右下角自定义缩放手柄：拖拽计算新尺寸 → win.setSize(LogicalSize)，最小 80x60
+  - 悬停显示关闭按钮
+  - Esc 关闭窗口
+  - 单击图片切换操作栏（复制/保存为文件/取消）
+  - 复制/保存从 dataUrl 提取 base64 调用后端
+  - 19 个测试
+- App 路由加 ?window=pin → PinView（1 个测试）
+
+### 验证结果
+- npm test: 140 passed (12 test files)
+- cargo test: 60 passed
+- npm run build: 成功
+
+### 关键决策
+- 图片跨窗口传递用 Rust 内存缓存（同进程共享），不用文件/store，简单高效
+- stash 用前端生成的完整 label（pin-{ts}）作 key，createWindow 传 suffix，Rust 拼出相同 label，保证取数据 key 一致
+- 先 stash 再 createWindow，避免窗口加载时数据未就绪
+- 调整大小用自定义右下角手柄 + setSize(LogicalSize)，不依赖系统缩放，体验一致
+- 窗口尺寸下限 80x60，防止缩到不可见
+- 贴图入口仅在截图结果页，符合主流程，避免过度设计

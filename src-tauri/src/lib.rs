@@ -35,6 +35,8 @@ pub fn run() {
             commands::storage_cmd::copy_to_clipboard,
             commands::shortcut_cmd::get_shortcuts,
             commands::shortcut_cmd::update_shortcut,
+            commands::pin_cmd::stash_pin_image,
+            commands::pin_cmd::take_pin_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

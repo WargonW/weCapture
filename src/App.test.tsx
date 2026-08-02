@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { ThemeProvider, createTheme } from '@mui/material/styles'
 import { MemoryRouter } from 'react-router-dom'
 import App from './App'
@@ -11,6 +11,25 @@ vi.mock('@tauri-apps/api', () => ({
       label: 'main',
     }),
   },
+}))
+
+// 模拟 @tauri-apps/api/window（PinView 依赖）
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: () => ({
+    label: 'pin-app-test',
+    startDragging: vi.fn(),
+    setInnerSize: vi.fn(),
+    close: vi.fn(),
+  }),
+  LogicalSize: class {
+    constructor(public width: number, public height: number) {}
+  },
+}))
+
+// 模拟 pin.service（PinView 启动时会调用 takePinImage）
+vi.mock('./services/pin.service', () => ({
+  takePinImage: vi.fn().mockResolvedValue('data:image/png;base64,AAA'),
+  closePinWindow: vi.fn().mockResolvedValue(undefined),
 }))
 
 const theme = createTheme()
@@ -77,6 +96,15 @@ describe('App 多窗口路由', () => {
       renderApp('/?window=color-picker')
       const picker = screen.getByTestId('color-picker')
       expect(picker).toBeInTheDocument()
+    })
+  })
+
+  describe('贴图窗口 (?window=pin)', () => {
+    it('应该渲染贴图视图', async () => {
+      renderApp('/?window=pin')
+      await waitFor(() => {
+        expect(screen.getByTestId('pin-view')).toBeInTheDocument()
+      })
     })
   })
 })

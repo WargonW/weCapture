@@ -14,12 +14,14 @@ import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import SaveAltIcon from '@mui/icons-material/SaveAlt'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import PushPinIcon from '@mui/icons-material/PushPin'
 import UndoIcon from '@mui/icons-material/Undo'
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep'
 import FormatListNumberedIcon from '@mui/icons-material/FormatListNumbered'
 import TextFieldsIcon from '@mui/icons-material/TextFields'
 import { captureRegion } from '../services/capture.service'
 import { saveToFile, copyToClipboard } from '../services/capture.service'
+import { pinImage } from '../services/pin.service'
 import type { CaptureRegion, ScreenshotResult } from '../types/capture'
 import { toDataUrl } from '../types/capture'
 import { useAnnotations } from '../hooks/useAnnotations'
@@ -46,6 +48,7 @@ export default function CaptureView() {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [copying, setCopying] = useState(false)
+  const [pinning, setPinning] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
   const {
@@ -156,6 +159,26 @@ export default function CaptureView() {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setCopying(false)
+    }
+  }, [result, annotations])
+
+  const handlePin = useCallback(async () => {
+    if (!result) return
+    setPinning(true)
+    try {
+      const composed = await composeImage(
+        toDataUrl(result),
+        annotations,
+        result.width,
+        result.height,
+      )
+      await pinImage(composed)
+      setMessage('已贴图到桌面')
+      setTimeout(() => setMessage(null), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPinning(false)
     }
   }, [result, annotations])
 
@@ -408,6 +431,17 @@ export default function CaptureView() {
             disabled={copying}
           >
             {copying ? <CircularProgress size={18} /> : <ContentCopyIcon fontSize="small" />}
+          </IconButton>
+
+          {/* 贴图 */}
+          <IconButton
+            data-testid="pin-to-desktop"
+            size="small"
+            color="primary"
+            onClick={handlePin}
+            disabled={pinning}
+          >
+            {pinning ? <CircularProgress size={18} /> : <PushPinIcon fontSize="small" />}
           </IconButton>
 
           {/* 关闭 */}
