@@ -281,3 +281,168 @@
 - 复制用浏览器 Clipboard API，失败回退 execCommand，不依赖后端 base64 接口
 - 点击采集后延时 300ms 关闭，让用户看到「已复制」提示
 - RgbColor 放 core 层纯模型，to_hex 大写格式，from_hex 支持可选 # 和大小写
+
+## M11: 录屏基础（全屏 + 选区，H.264 + MP4） (2026-08-02)
+
+### 完成内容
+- Rust: core/recorder.rs 录屏领域模型
+  - RecorderMode（Fullscreen/Region）+ RecorderState（Idle/Recording/Stopped）
+  - RecorderConfig（fps + mode + region）+ is_valid + frame_interval_ms
+  - RecorderStateMachine 状态机（start/stop/cancel/reset，非法转换报错）
+  - rgba_to_i420：BT.601 整数近似（×256），Y/U/V 三平面，2x2 色度采样
+  - i420_to_contiguous：三平面拼接为单 Vec（供 openh264 YUVBuffer::from_vec）
+  - 28 个单元测试（配置/状态机/serde/色彩转换）
+- Rust: services/recorder_service.rs 录屏服务
+  - RecorderService 全局单例（Mutex<Option<ActiveRecording>>）
+  - start/stop/cancel/state/reset/config 接口
+  - 后台线程：xcap 逐帧采集 → frame_to_even_rgba → rgba_to_i420 → openh264 编码 → muxide 封装 MP4
+  - Arc<AtomicBool> 停止标志 + Arc<Mutex<Option<String>>> 错误槽
+  - sleep_with_flag 每 10ms 检查停止标志，保证停止响应 <10ms
+  - 录制超过 1 小时自动停止（保护机制）
+  - 输出路径：~/snapmaster_record_{ts}.mp4
+  - 13 个单元测试
+- Rust: commands/recorder_cmd.rs 命令层
+  - start_recorder / stop_recorder / cancel_recorder / recorder_state
+  - 4 个签名测试
+- Rust: Cargo.toml 添加 openh264 0.7（source feature）+ muxide 0.2
+- Rust: lib.rs 注册 RecorderService 单例 + 4 个录屏命令
+- Rust: window_config.rs Recorder 窗口改为全屏无边框可调整（选区阶段全屏，录制阶段前端动态缩小）
+- 前端: services/recorder.service.ts
+  - RecorderMode/RecorderState/RecorderConfig 类型（与 Rust 一致，camelCase）
+  - fullscreenConfig / regionConfig 工厂 + startRecorder/stopRecorder/cancelRecorder/recorderState
+  - 11 个测试
+- 前端: views/RecorderView.tsx 三阶段交互
+  - 选区阶段：全屏遮罩 + 拖拽选区（复用 regionFromPoints）+ 顶部「全屏录屏」入口
+  - 录制中阶段：窗口缩小为 280×64 置顶控制条（红点 + mm:ss 计时器 + 停止按钮）
+  - 完成阶段：显示「已保存: <path>」，3 秒后自动关闭窗口
+  - shrinkToControlBar：setFullscreen(false) + setSize + setAlwaysOnTop(true)
+  - Esc：选区阶段取消，录制阶段停止
+  - 错误处理：录制失败回退到选区阶段并恢复全屏
+- 前端: App.test.tsx 录屏窗口测试（初始为选区浮层 + 全屏录屏入口）
+- 主窗口: MainView 录屏卡片（VideocamIcon + Ctrl+Shift+R 快捷键提示，从配置动态读取）
+- 快捷键: Ctrl+Shift+R 全局触发 → 打开 Recorder 窗口（shortcut_service 已映射 Recorder→Recorder）
+
+### 验证结果
+- npm test: 172 passed (15 test files)
+- cargo test: 110 passed
+- npm run build: 成功
+
+### 关键决策
+- 色彩转换用 BT.601 整数近似（77/150/29 系数 ×256 后 >>8），避免浮点运算
+- Y/U/V 三平面拼接为单 Vec 再交给 YUVBuffer::from_vec，避免逐行拷贝
+- frame_to_even_rgba 裁剪到偶数尺寸（YUV420 要求），奇数尺寸按行截断
+- 录屏窗口初始全屏无边框可调整，录制开始时前端动态缩小为控制条，复用截图选区交互
+- 后台线程 + AtomicBool 停止标志，主线程 stop 时 join 等待线程结束再返回路径
+- PTS 按固定步长 1.0/fps 递增，首帧标记为关键帧，保证 MP4 可拖动播放
+- 音频和 GIF 留到下一轮（M12），本轮仅视频轨道
+
+## M12: 录屏音频（Opus）+ GIF 录制 (2026-08-02)
+
+### 完成内容
+- Rust: core/audio.rs 音频领域模型
+  - AudioConfig（sample_rate/channels）+ AudioChannels（Mono/Stereo）
+  - OpusEncoder 封装 opus crate（Application::Audio，20ms 帧 = sample_rate/50 样本）
+  - f32_to_i16 PCM 转换（[-1.0,1.0] → i16，clamp 保护）
+  - 16 个单元测试
+- Rust: core/gif.rs GIF 编码工具
+  - GifEncoder<W: Write> 包装 gif::Encoder，set_repeat(Infinite)
+  - write_frame(rgba, delay_ms)：Frame::from_rgba_speed 自动量化 256 色调色板
+  - downsample_rgba：最近邻插值等比缩放到目标宽度
+  - 12 个单元测试
+- Rust: core/recorder.rs 扩展
+  - OutputFormat 枚举（Mp4/Gif）+ Default::Mp4
+  - RecorderConfig 新增 output_format（serde default）+ audio_enabled（serde default）
+  - effective_audio()：仅 Mp4+audio_enabled 时为真；extension() 返回文件扩展名
+  - 向后兼容：旧 JSON 不带新字段时回退默认值
+  - 7 个新测试
+- Rust: services/recorder_service.rs 双路径录制
+  - run_recording 按 output_format 分发到 run_mp4_recording / run_gif_recording
+  - run_mp4_recording：muxer 配置可选 .audio(AudioCodec::Opus, 48000, 2)
+  - 音频采集线程 spawn_audio_capture（#[cfg(feature="audio")]）：
+    cpal 输入流 → 回调推送 f32 PCM 到 channel → 编码线程累积 960×2 样本 → Opus 编码 → 发送
+    沙箱/无设备环境优雅退出，主线程不收到音频包（降级为纯视频）
+  - 主线程非阻塞 try_recv 音频包，write_audio(pts=count×0.02)
+  - muxide 要求音频 PTS ≥ 首帧视频 PTS，故先写首帧视频再写音频
+  - run_gif_recording：xcap 采集 → downsample_rgba(≤480px) → GifEncoder 逐帧写
+  - GIF 限制：480px 最大宽度 + 10 分钟录制时长（文件大小保护）
+  - generate_output_path 按 config.extension() 决定 .mp4/.gif
+- Rust: Cargo.toml 添加 gif 0.14 / opus 0.3（默认）+ cpal 0.17（optional `audio` feature）
+  - 默认构建不依赖 cpal/alsa-dev，保持轻量；真实环境 `--features audio` 启用系统音频
+  - 安装 libasound2-dev + libopus-dev 系统依赖
+- 前端: services/recorder.service.ts
+  - OutputFormat 类型 + RecorderConfig 新增 outputFormat?/audioEnabled?
+  - fullscreenConfig/regionConfig 增加 opts 参数（outputFormat/audioEnabled）
+  - 4 个新测试
+- 前端: views/RecorderView.tsx 选区阶段格式选择 UI
+  - 顶部工具栏增加 ToggleButtonGroup（MP4/GIF）+ 音频开关 IconButton
+  - GIF 模式禁用音频开关（Tooltip 提示"GIF 不支持音频"）
+  - handleStart 把 outputFormat + audioEnabled 传入 config
+- 文档: architecture.md 更新录屏数据流（MP4 音频混流 + GIF 路径）、依赖表、目录结构、迭代计划
+
+### 验证结果
+- npm test: 176 passed (15 test files)
+- cargo test: 145 passed（默认 feature）
+- cargo build --features audio: 成功（cpal + opus 编译通过）
+- npm run build: 成功
+
+### 关键决策
+- 音频采集做成 optional `audio` feature：默认构建链不引入 cpal/alsa-dev，CI/沙箱测试用默认 feature；真实环境 `--features audio` 启用系统音频采集。保持"项目可运行"且测试不依赖音频设备
+- Opus 编码始终启用（opus crate 默认依赖，libopus 已装）：编码逻辑可单元测试，不依赖设备
+- 音频 PTS 用包计数 × 0.02s 累加，配合 muxide 的"音频不早于首帧视频"约束：先写首帧视频再写音频
+- 音频采集失败优雅降级：cpal 找不到设备/建流失败时线程退出，主线程 try_recv 无包，录制继续为纯视频，不阻断
+- GIF 用 Frame::from_rgba_speed 自动量化调色板（speed=10 平衡质量与速度），避免手写调色板量化
+- GIF 降采样最近邻插值：简单快速，480px 限宽控制文件大小
+- OutputFormat/audio_enabled 字段加 #[serde(default)]：保证旧前端请求向后兼容
+- muxide write_audio 接受 Opus 包（已编码），不是 PCM；编码在音频线程完成
+- 用户确认范围：仅系统音频 + Opus 编码 + 录屏转 GIF（非截图转 GIF）
+
+## M13: 截图全屏选项 + 多屏兼容 (2026-08-02)
+
+### 完成内容
+- Rust: core/screenshot.rs 新增 MonitorInfo 模型
+  - 字段：id/name/x/y/width/height/isPrimary（虚拟桌面坐标 + 物理像素分辨率）
+  - contains_point(px, py)：判断虚拟桌面坐标是否落在该显示器范围
+  - 5 个单元测试（构造/包含判断/副屏场景/serde camelCase）
+- Rust: services/capture_service.rs 重构多屏支持
+  - list_monitors()：返回所有显示器 MonitorInfo 列表（单显示器信息获取失败时跳过）
+  - select_monitor(monitor_id)：三级回退策略
+    1. 按指定 id 精确匹配
+    2. None 或找不到 id 时回退主显示器
+    3. 仍找不到时回退第一个显示器
+  - capture_fullscreen/capture_region/capture_pixel 全部增加 monitor_id: Option<u32> 参数
+  - 5 个单元测试（invalid region/negative coords/list_monitors/monitor_count 一致性）
+- Rust: commands/capture_cmd.rs 命令层扩展
+  - capture_fullscreen(monitor_id) / capture_region(region, monitor_id) / capture_pixel(x, y, monitor_id)
+  - 新增 list_monitors 命令
+  - 8 个签名/参数测试
+- Rust: lib.rs 注册 list_monitors 命令
+- 前端: types/capture.ts 新增 MonitorInfo 接口 + monitorContainsPoint 工具函数
+- 前端: services/capture.service.ts 扩展
+  - captureFullscreen(monitorId?) / captureRegion(region, monitorId?)：可选参，不传时传 null
+  - listMonitors()：返回 MonitorInfo[]
+  - 11 个测试（含 monitorId 透传、listMonitors 成功/失败）
+- 前端: views/CaptureView.tsx 顶部工具栏
+  - 全屏截图按钮（FullscreenIcon + loading 状态）
+  - 显示器选择下拉（多屏时显示，单屏隐藏；显示名称 + 分辨率 + 虚拟桌面坐标）
+  - 默认选中主显示器；切换显示器时清除当前选区
+  - handleConfirm 透传 monitorId；handleFullscreenCapture 一键采集选中显示器
+  - 顶部工具栏 onMouseDown stopPropagation，避免误触发选区
+- 前端: views/CaptureView.test.tsx 新增测试
+  - 顶部工具栏/全屏按钮/单屏不显示下拉
+  - 全屏截图成功/失败/进入结果页
+  - 多屏场景显示下拉
+  - 确认截图传 monitorId=undefined（单屏场景）
+
+### 验证结果
+- npm test: 188 passed (15 test files)
+- cargo test: 159 passed
+- npm run build: 成功
+
+### 关键决策
+- monitor_id 用 Option<u32>：None 时回退主显示器，保证旧调用方向后兼容（前端不传即 null）
+- select_monitor 三级回退：精确 id → 主显示器 → 第一个，保证任何环境下都能拿到显示器
+- MonitorInfo.contains_point 用于未来按选区坐标自动定位显示器（当前版本由用户手动选）
+- 单屏场景隐藏显示器下拉，避免 UI 干扰；多屏场景才显示
+- 截图窗口仍单屏全屏（在主显示器），多屏选区由用户主动选择目标显示器
+- 顶部工具栏 onMouseDown stopPropagation：点击工具栏不触发底层选区拖拽
+- 切换显示器时清除选区：避免选区坐标与新显示器不匹配

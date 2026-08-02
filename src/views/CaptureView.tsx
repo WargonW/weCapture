@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import {
   Box,
   IconButton,
@@ -9,7 +9,12 @@ import {
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
+  Button,
+  MenuItem,
+  Select,
+  FormControl,
 } from '@mui/material'
+import type { SelectChangeEvent } from '@mui/material'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import SaveAltIcon from '@mui/icons-material/SaveAlt'
@@ -19,10 +24,12 @@ import UndoIcon from '@mui/icons-material/Undo'
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep'
 import FormatListNumberedIcon from '@mui/icons-material/FormatListNumbered'
 import TextFieldsIcon from '@mui/icons-material/TextFields'
-import { captureRegion } from '../services/capture.service'
+import FullscreenIcon from '@mui/icons-material/Fullscreen'
+import MonitorIcon from '@mui/icons-material/Monitor'
+import { captureRegion, captureFullscreen, listMonitors } from '../services/capture.service'
 import { saveToFile, copyToClipboard } from '../services/capture.service'
 import { pinImage } from '../services/pin.service'
-import type { CaptureRegion, ScreenshotResult } from '../types/capture'
+import type { CaptureRegion, MonitorInfo, ScreenshotResult } from '../types/capture'
 import { toDataUrl } from '../types/capture'
 import { useAnnotations } from '../hooks/useAnnotations'
 import { composeImage } from '../utils/composeImage'
@@ -50,6 +57,8 @@ export default function CaptureView() {
   const [copying, setCopying] = useState(false)
   const [pinning, setPinning] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [monitors, setMonitors] = useState<MonitorInfo[]>([])
+  const [selectedMonitorId, setSelectedMonitorId] = useState<number>('' as unknown as number)
 
   const {
     annotations,
@@ -66,6 +75,25 @@ export default function CaptureView() {
   } = useAnnotations('#F44336')
 
   const imgRef = useRef<HTMLImageElement>(null)
+
+  /// 加载显示器列表
+  useEffect(() => {
+    let cancelled = false
+    listMonitors()
+      .then((list) => {
+        if (cancelled) return
+        setMonitors(list)
+        // 默认选中主显示器
+        const primary = list.find((m) => m.isPrimary)
+        setSelectedMonitorId(primary?.id ?? list[0]?.id ?? ('' as unknown as number))
+      })
+      .catch(() => {
+        /* 加载失败保持空列表，后端回退主显示器 */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (result || loading) return
@@ -104,14 +132,41 @@ export default function CaptureView() {
         width: selection.width,
         height: selection.height,
       }
-      const res = await captureRegion(region)
+      const monitorId =
+        selectedMonitorId === ('' as unknown as number) ? undefined : selectedMonitorId
+      const res = await captureRegion(region, monitorId)
       setResult(res)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoading(false)
     }
-  }, [selection])
+  }, [selection, selectedMonitorId])
+
+  /// 一键全屏截图：直接采集当前选中显示器
+  const handleFullscreenCapture = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const monitorId =
+        selectedMonitorId === ('' as unknown as number) ? undefined : selectedMonitorId
+      const res = await captureFullscreen(monitorId)
+      setResult(res)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [selectedMonitorId])
+
+  /// 切换目标显示器
+  const handleMonitorChange = useCallback((e: SelectChangeEvent<number>) => {
+    const val = e.target.value as number
+    setSelectedMonitorId(val)
+    // 切换显示器时清除当前选区
+    setSelection(null)
+    setDragStart(null)
+  }, [])
 
   const handleCancel = useCallback(() => {
     setSelection(null)
@@ -498,6 +553,74 @@ export default function CaptureView() {
         userSelect: 'none',
       }}
     >
+      {/* 顶部固定工具栏：显示器选择 + 全屏截图 + 取消 */}
+      <Box
+        data-testid="capture-topbar"
+        onMouseDown={(e) => e.stopPropagation()}
+        sx={{
+          position: 'fixed',
+          top: 16,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          bgcolor: 'background.paper',
+          borderRadius: 2,
+          p: 0.5,
+          boxShadow: 3,
+        }}
+      >
+        {monitors.length > 0 && (
+          <FormControl size="small" sx={{ minWidth: 160 }}>
+            <Select
+              data-testid="monitor-select"
+              value={selectedMonitorId}
+              onChange={handleMonitorChange}
+              displayEmpty
+              renderValue={(val) => {
+                const m = monitors.find((x) => x.id === val)
+                return (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <MonitorIcon fontSize="small" />
+                    <Typography variant="caption">
+                      {m ? m.name : '选择显示器'}
+                    </Typography>
+                  </Box>
+                )
+              }}
+            >
+              {monitors.map((m) => (
+                <MenuItem key={m.id} value={m.id}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                    <Typography variant="body2">
+                      {m.name}
+                      {m.isPrimary ? '（主）' : ''}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {m.width}×{m.height} @ ({m.x},{m.y})
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
+
+        <Button
+          data-testid="fullscreen-capture-btn"
+          size="small"
+          startIcon={loading ? <CircularProgress size={16} /> : <FullscreenIcon />}
+          onClick={handleFullscreenCapture}
+          disabled={loading}
+        >
+          全屏截图
+        </Button>
+        <IconButton size="small" onClick={handleCancel}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </Box>
+
       {selection && selection.width > 0 && selection.height > 0 && (
         <Box
           data-testid="selection-box"
@@ -554,7 +677,7 @@ export default function CaptureView() {
         <Box
           sx={{
             position: 'fixed',
-            top: 16,
+            top: 80,
             left: '50%',
             transform: 'translateX(-50%)',
             bgcolor: 'error.main',

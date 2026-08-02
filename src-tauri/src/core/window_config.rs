@@ -88,12 +88,12 @@ impl WindowConfig {
                 label: "recorder".to_string(),
                 window_type,
                 title: "录屏".to_string(),
-                width: 200,
-                height: 48,
-                fullscreen: false,
-                always_on_top: true,
+                width: 1920,
+                height: 1080,
+                fullscreen: true,
+                always_on_top: false,
                 decorations: false,
-                resizable: false,
+                resizable: true,
             },
             WindowType::ColorPicker => Self {
                 label: "color-picker".to_string(),
@@ -162,11 +162,13 @@ mod tests {
     }
 
     #[test]
-    fn test_recorder_config_always_on_top() {
+    fn test_recorder_config_fullscreen_resizable() {
         let config = WindowConfig::from_type(WindowType::Recorder);
-        assert!(config.always_on_top);
+        // 选区阶段全屏无边框可调整，录制阶段前端动态缩小为控制条
+        assert!(config.fullscreen);
         assert!(!config.decorations);
-        assert!(!config.fullscreen);
+        assert!(config.resizable);
+        assert!(!config.always_on_top);
     }
 
     #[test]

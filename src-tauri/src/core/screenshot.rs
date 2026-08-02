@@ -77,6 +77,48 @@ impl ScreenshotResult {
     }
 }
 
+/// 显示器信息（跨平台抽象，供前端选择目标显示器）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MonitorInfo {
+    /// 显示器唯一标识（xcap 内部 id）
+    pub id: u32,
+    /// 显示器名称（系统报告的名称）
+    pub name: String,
+    /// 在虚拟桌面中的左上角 X 坐标
+    pub x: i32,
+    /// 在虚拟桌面中的左上角 Y 坐标
+    pub y: i32,
+    /// 分辨率宽度（物理像素）
+    pub width: u32,
+    /// 分辨率高度（物理像素）
+    pub height: u32,
+    /// 是否为主显示器
+    pub is_primary: bool,
+}
+
+impl MonitorInfo {
+    pub fn new(id: u32, name: String, x: i32, y: i32, width: u32, height: u32, is_primary: bool) -> Self {
+        Self {
+            id,
+            name,
+            x,
+            y,
+            width,
+            height,
+            is_primary,
+        }
+    }
+
+    /// 判断虚拟桌面坐标 (px, py) 是否落在该显示器范围内
+    pub fn contains_point(&self, px: i32, py: i32) -> bool {
+        px >= self.x
+            && px < self.x + self.width as i32
+            && py >= self.y
+            && py < self.y + self.height as i32
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -153,5 +195,64 @@ mod tests {
         assert_eq!(json, "\"Region\"");
         let deserialized: CaptureMode = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized, CaptureMode::Region);
+    }
+
+    // ===== MonitorInfo 测试 =====
+
+    #[test]
+    fn test_monitor_info_new() {
+        let m = MonitorInfo::new(1, "Display 1".to_string(), 0, 0, 1920, 1080, true);
+        assert_eq!(m.id, 1);
+        assert_eq!(m.name, "Display 1");
+        assert_eq!(m.x, 0);
+        assert_eq!(m.y, 0);
+        assert_eq!(m.width, 1920);
+        assert_eq!(m.height, 1080);
+        assert!(m.is_primary);
+    }
+
+    #[test]
+    fn test_monitor_info_contains_point_inside() {
+        let m = MonitorInfo::new(1, "Main".to_string(), 0, 0, 1920, 1080, true);
+        // 左上角
+        assert!(m.contains_point(0, 0));
+        // 内部点
+        assert!(m.contains_point(100, 100));
+        // 右下角内侧（边界 = width-1）
+        assert!(m.contains_point(1919, 1079));
+    }
+
+    #[test]
+    fn test_monitor_info_contains_point_outside() {
+        let m = MonitorInfo::new(1, "Main".to_string(), 0, 0, 1920, 1080, true);
+        // 右边界外
+        assert!(!m.contains_point(1920, 0));
+        // 下边界外
+        assert!(!m.contains_point(0, 1080));
+        // 负坐标
+        assert!(!m.contains_point(-1, -1));
+    }
+
+    #[test]
+    fn test_monitor_info_contains_point_secondary_monitor() {
+        // 副显示器在主显示器右侧：x=1920
+        let m = MonitorInfo::new(2, "Secondary".to_string(), 1920, 0, 1920, 1080, false);
+        // 副屏内部
+        assert!(m.contains_point(2000, 500));
+        // 主屏区域不属于副屏
+        assert!(!m.contains_point(1000, 500));
+    }
+
+    #[test]
+    fn test_monitor_info_serde() {
+        let m = MonitorInfo::new(2, "HDMI-1".to_string(), -1920, 0, 1920, 1080, false);
+        let json = serde_json::to_string(&m).unwrap();
+        // camelCase 字段名
+        assert!(json.contains("\"isPrimary\":false"));
+        assert!(json.contains("\"id\":2"));
+        let de: MonitorInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(de.id, 2);
+        assert_eq!(de.x, -1920);
+        assert!(!de.is_primary);
     }
 }

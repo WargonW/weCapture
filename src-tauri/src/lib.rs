@@ -5,6 +5,8 @@ pub mod services;
 /// Tauri Command 接口层
 pub mod commands;
 
+use tauri::Manager;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -18,6 +20,8 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            // 录屏服务（全局单例，跨命令保持会话状态）
+            app.manage(services::recorder_service::RecorderService::new());
             // 加载用户快捷键配置并注册全局快捷键
             let config = services::shortcut_config::ShortcutConfig::load(app.handle());
             services::shortcut_service::register_all(app.handle(), &config)
@@ -32,12 +36,17 @@ pub fn run() {
             commands::capture_cmd::capture_region,
             commands::capture_cmd::capture_pixel,
             commands::capture_cmd::monitor_count,
+            commands::capture_cmd::list_monitors,
             commands::storage_cmd::save_to_file,
             commands::storage_cmd::copy_to_clipboard,
             commands::shortcut_cmd::get_shortcuts,
             commands::shortcut_cmd::update_shortcut,
             commands::pin_cmd::stash_pin_image,
             commands::pin_cmd::take_pin_image,
+            commands::recorder_cmd::start_recorder,
+            commands::recorder_cmd::stop_recorder,
+            commands::recorder_cmd::cancel_recorder,
+            commands::recorder_cmd::recorder_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

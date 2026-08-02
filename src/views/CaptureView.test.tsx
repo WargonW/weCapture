@@ -6,10 +6,14 @@ import type { ScreenshotResult } from '../types/capture'
 
 // 模拟 capture.service
 const captureRegionMock = vi.fn()
+const captureFullscreenMock = vi.fn()
+const listMonitorsMock = vi.fn()
 const saveToFileMock = vi.fn()
 const copyToClipboardMock = vi.fn()
 vi.mock('../services/capture.service', () => ({
   captureRegion: (...args: unknown[]) => captureRegionMock(...args),
+  captureFullscreen: (...args: unknown[]) => captureFullscreenMock(...args),
+  listMonitors: (...args: unknown[]) => listMonitorsMock(...args),
   saveToFile: (...args: unknown[]) => saveToFileMock(...args),
   copyToClipboard: (...args: unknown[]) => copyToClipboardMock(...args),
 }))
@@ -52,6 +56,9 @@ describe('CaptureView 交互式截图浮层', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     captureRegionMock.mockResolvedValue(fakeResult)
+    captureFullscreenMock.mockResolvedValue(fakeResult)
+    // 默认返回空显示器列表（单屏场景）
+    listMonitorsMock.mockResolvedValue([])
     saveToFileMock.mockResolvedValue('/home/user/snapmaster_123.png')
     copyToClipboardMock.mockResolvedValue(undefined)
     composeImageMock.mockResolvedValue('data:image/png;base64,composedData')
@@ -64,6 +71,21 @@ describe('CaptureView 交互式截图浮层', () => {
       expect(screen.getByTestId('capture-overlay')).toBeInTheDocument()
     })
 
+    it('应渲染顶部工具栏', () => {
+      renderView()
+      expect(screen.getByTestId('capture-topbar')).toBeInTheDocument()
+    })
+
+    it('应渲染全屏截图按钮', () => {
+      renderView()
+      expect(screen.getByTestId('fullscreen-capture-btn')).toBeInTheDocument()
+    })
+
+    it('单屏场景不渲染显示器选择下拉', () => {
+      renderView()
+      expect(screen.queryByTestId('monitor-select')).not.toBeInTheDocument()
+    })
+
     it('初始状态不显示选区框', () => {
       renderView()
       expect(screen.queryByTestId('selection-box')).not.toBeInTheDocument()
@@ -72,6 +94,47 @@ describe('CaptureView 交互式截图浮层', () => {
     it('初始状态不显示操作栏', () => {
       renderView()
       expect(screen.queryByTestId('capture-toolbar')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('全屏截图', () => {
+    it('点击全屏截图按钮应调用 captureFullscreen', async () => {
+      renderView()
+      const btn = screen.getByTestId('fullscreen-capture-btn')
+      fireEvent.click(btn)
+      await waitFor(() => {
+        expect(captureFullscreenMock).toHaveBeenCalled()
+      })
+    })
+
+    it('全屏截图完成应进入结果页', async () => {
+      renderView()
+      fireEvent.click(screen.getByTestId('fullscreen-capture-btn'))
+      await waitFor(() => {
+        expect(screen.getByTestId('capture-result')).toBeInTheDocument()
+      })
+    })
+
+    it('全屏截图失败应显示错误', async () => {
+      captureFullscreenMock.mockRejectedValueOnce('截图失败')
+      renderView()
+      fireEvent.click(screen.getByTestId('fullscreen-capture-btn'))
+      await waitFor(() => {
+        expect(screen.getByText('截图失败')).toBeInTheDocument()
+      })
+    })
+  })
+
+  describe('多屏显示器选择', () => {
+    it('多屏场景应渲染显示器选择下拉', async () => {
+      listMonitorsMock.mockResolvedValueOnce([
+        { id: 1, name: 'Display 1', x: 0, y: 0, width: 1920, height: 1080, isPrimary: true },
+        { id: 2, name: 'Display 2', x: 1920, y: 0, width: 1920, height: 1080, isPrimary: false },
+      ])
+      renderView()
+      await waitFor(() => {
+        expect(screen.getByTestId('monitor-select')).toBeInTheDocument()
+      })
     })
   })
 
@@ -124,7 +187,7 @@ describe('CaptureView 交互式截图浮层', () => {
   })
 
   describe('确认截图', () => {
-    it('点击确认按钮应调用 captureRegion', async () => {
+    it('点击确认按钮应调用 captureRegion（单屏场景 monitorId 为 undefined）', async () => {
       renderView()
       const overlay = screen.getByTestId('capture-overlay')
 
@@ -136,12 +199,15 @@ describe('CaptureView 交互式截图浮层', () => {
       fireEvent.click(confirmBtn)
 
       await waitFor(() => {
-        expect(captureRegionMock).toHaveBeenCalledWith({
-          x: 100,
-          y: 100,
-          width: 200,
-          height: 100,
-        })
+        expect(captureRegionMock).toHaveBeenCalledWith(
+          {
+            x: 100,
+            y: 100,
+            width: 200,
+            height: 100,
+          },
+          undefined,
+        )
       })
     })
 

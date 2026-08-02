@@ -13,12 +13,15 @@ vi.mock('@tauri-apps/api', () => ({
   },
 }))
 
-// 模拟 @tauri-apps/api/window（PinView 依赖）
+// 模拟 @tauri-apps/api/window（PinView/RecorderView 依赖）
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => ({
-    label: 'pin-app-test',
+    label: 'app-test',
     startDragging: vi.fn(),
     setInnerSize: vi.fn(),
+    setSize: vi.fn(),
+    setFullscreen: vi.fn(),
+    setAlwaysOnTop: vi.fn(),
     close: vi.fn(),
   }),
   LogicalSize: class {
@@ -40,7 +43,17 @@ vi.mock('./services/color.service', () => ({
   copyText: vi.fn().mockResolvedValue(undefined),
 }))
 
-// 模拟 window.service（ColorPickerView 关闭窗口依赖）
+// 模拟 recorder.service（RecorderView 依赖）
+vi.mock('./services/recorder.service', () => ({
+  startRecorder: vi.fn().mockResolvedValue(undefined),
+  stopRecorder: vi.fn().mockResolvedValue('/tmp/snapmaster_record_1.mp4'),
+  cancelRecorder: vi.fn().mockResolvedValue(undefined),
+  recorderState: vi.fn().mockResolvedValue('Idle'),
+  fullscreenConfig: () => ({ fps: 30, mode: 'Fullscreen', region: null }),
+  regionConfig: (region: unknown) => ({ fps: 30, mode: 'Region', region }),
+}))
+
+// 模拟 window.service（关闭窗口依赖）
 vi.mock('./services/window.service', () => ({
   createWindow: vi.fn().mockResolvedValue('mock-window'),
   closeWindow: vi.fn().mockResolvedValue(undefined),
@@ -97,11 +110,17 @@ describe('App 多窗口路由', () => {
     })
   })
 
-  describe('录屏控制条 (?window=recorder)', () => {
-    it('应该渲染录屏控制条', () => {
+  describe('录屏浮层 (?window=recorder)', () => {
+    it('应该渲染录屏选区浮层', () => {
+      // 录屏窗口打开时初始为选区阶段，渲染全屏遮罩
       renderApp('/?window=recorder')
-      const control = screen.getByTestId('recorder-control')
-      expect(control).toBeInTheDocument()
+      const overlay = screen.getByTestId('recorder-overlay')
+      expect(overlay).toBeInTheDocument()
+    })
+
+    it('应该提供全屏录屏入口', () => {
+      renderApp('/?window=recorder')
+      expect(screen.getByTestId('recorder-fullscreen-btn')).toBeInTheDocument()
     })
   })
 

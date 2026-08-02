@@ -29,3 +29,14 @@ base64 = "0.22"
 arboard = "3.4"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-store = "2"
+openh264 = { version = "0.7", default-features = false, features = ["source"] }
+muxide = "0.2"
+gif = "0.14"
+opus = "0.3"
+cpal = { version = "0.17", optional = true }
+
+[features]
+default = []
+# 启用系统音频采集（PulseAudio/ALSA monitor source）。
+# 默认关闭以保持构建链轻量；真实环境用 --features audio 启用。
+audio = ["dep:cpal"]
