@@ -12,11 +12,13 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "SnapMaster",
-        "width": 800,
+        "width": 480,
         "height": 600,
-        "resizable": true,
-        "fullscreen": false
+        "resizable": false,
+        "fullscreen": false,
+        "center": true
       }
     ],
     "security": {
