@@ -3,6 +3,8 @@ import {
   captureFullscreen,
   captureRegion,
   monitorCount,
+  saveToFile,
+  copyToClipboard,
 } from './capture.service'
 import type { ScreenshotResult } from '../types/capture'
 
@@ -58,6 +60,27 @@ describe('capture.service', () => {
       const count = await monitorCount()
       expect(invokeMock).toHaveBeenCalledWith('monitor_count')
       expect(count).toBe(2)
+    })
+  })
+
+  describe('saveToFile', () => {
+    it('应调用 save_to_file command 并传入 imageData', async () => {
+      invokeMock.mockResolvedValueOnce('/home/user/snapmaster_123.png')
+      const path = await saveToFile('iVBORw0KGgo=')
+      expect(invokeMock).toHaveBeenCalledWith('save_to_file', {
+        imageData: 'iVBORw0KGgo=',
+      })
+      expect(path).toBe('/home/user/snapmaster_123.png')
+    })
+  })
+
+  describe('copyToClipboard', () => {
+    it('应调用 copy_to_clipboard command 并传入 imageData', async () => {
+      invokeMock.mockResolvedValueOnce(undefined)
+      await copyToClipboard('iVBORw0KGgo=')
+      expect(invokeMock).toHaveBeenCalledWith('copy_to_clipboard', {
+        imageData: 'iVBORw0KGgo=',
+      })
     })
   })
 })

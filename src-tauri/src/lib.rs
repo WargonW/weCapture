@@ -25,6 +25,8 @@ pub fn run() {
             commands::capture_cmd::capture_fullscreen,
             commands::capture_cmd::capture_region,
             commands::capture_cmd::monitor_count,
+            commands::storage_cmd::save_to_file,
+            commands::storage_cmd::copy_to_clipboard,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

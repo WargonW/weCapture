@@ -6,8 +6,12 @@ import type { ScreenshotResult } from '../types/capture'
 
 // 模拟 capture.service
 const captureRegionMock = vi.fn()
+const saveToFileMock = vi.fn()
+const copyToClipboardMock = vi.fn()
 vi.mock('../services/capture.service', () => ({
   captureRegion: (...args: unknown[]) => captureRegionMock(...args),
+  saveToFile: (...args: unknown[]) => saveToFileMock(...args),
+  copyToClipboard: (...args: unknown[]) => copyToClipboardMock(...args),
 }))
 
 // 模拟 window.service（截图完成后关闭窗口）
@@ -36,6 +40,8 @@ describe('CaptureView 交互式截图浮层', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     captureRegionMock.mockResolvedValue(fakeResult)
+    saveToFileMock.mockResolvedValue('/home/user/snapmaster_123.png')
+    copyToClipboardMock.mockResolvedValue(undefined)
   })
 
   describe('初始状态', () => {
@@ -137,6 +143,74 @@ describe('CaptureView 交互式截图浮层', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('capture-result')).toBeInTheDocument()
+      })
+    })
+  })
+
+  describe('保存截图', () => {
+    it('截图结果页应显示保存按钮', async () => {
+      renderView()
+      const overlay = screen.getByTestId('capture-overlay')
+      fireEvent.mouseDown(overlay, { clientX: 100, clientY: 100 })
+      fireEvent.mouseMove(overlay, { clientX: 300, clientY: 200 })
+      fireEvent.mouseUp(overlay)
+      fireEvent.click(screen.getByTestId('confirm-capture'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('save-to-file')).toBeInTheDocument()
+      })
+    })
+
+    it('点击保存按钮应调用 saveToFile', async () => {
+      renderView()
+      const overlay = screen.getByTestId('capture-overlay')
+      fireEvent.mouseDown(overlay, { clientX: 100, clientY: 100 })
+      fireEvent.mouseMove(overlay, { clientX: 300, clientY: 200 })
+      fireEvent.mouseUp(overlay)
+      fireEvent.click(screen.getByTestId('confirm-capture'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('save-to-file')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByTestId('save-to-file'))
+
+      await waitFor(() => {
+        expect(saveToFileMock).toHaveBeenCalledWith('iVBORw0KGgo=')
+      })
+    })
+  })
+
+  describe('复制到剪贴板', () => {
+    it('截图结果页应显示复制按钮', async () => {
+      renderView()
+      const overlay = screen.getByTestId('capture-overlay')
+      fireEvent.mouseDown(overlay, { clientX: 100, clientY: 100 })
+      fireEvent.mouseMove(overlay, { clientX: 300, clientY: 200 })
+      fireEvent.mouseUp(overlay)
+      fireEvent.click(screen.getByTestId('confirm-capture'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('copy-to-clipboard')).toBeInTheDocument()
+      })
+    })
+
+    it('点击复制按钮应调用 copyToClipboard', async () => {
+      renderView()
+      const overlay = screen.getByTestId('capture-overlay')
+      fireEvent.mouseDown(overlay, { clientX: 100, clientY: 100 })
+      fireEvent.mouseMove(overlay, { clientX: 300, clientY: 200 })
+      fireEvent.mouseUp(overlay)
+      fireEvent.click(screen.getByTestId('confirm-capture'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('copy-to-clipboard')).toBeInTheDocument()
+      })
+
+      fireEvent.click(screen.getByTestId('copy-to-clipboard'))
+
+      await waitFor(() => {
+        expect(copyToClipboardMock).toHaveBeenCalledWith('iVBORw0KGgo=')
       })
     })
   })

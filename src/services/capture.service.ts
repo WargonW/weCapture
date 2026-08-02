@@ -15,3 +15,13 @@ export async function captureRegion(region: CaptureRegion): Promise<ScreenshotRe
 export async function monitorCount(): Promise<number> {
   return invoke<number>('monitor_count')
 }
+
+/// 保存截图到文件，返回保存路径
+export async function saveToFile(imageData: string): Promise<string> {
+  return invoke<string>('save_to_file', { imageData })
+}
+
+/// 复制截图到剪贴板
+export async function copyToClipboard(imageData: string): Promise<void> {
+  return invoke('copy_to_clipboard', { imageData })
+}

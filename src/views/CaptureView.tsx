@@ -1,8 +1,11 @@
 import { useState, useCallback } from 'react'
-import { Box, IconButton, Stack, CircularProgress } from '@mui/material'
+import { Box, IconButton, Stack, CircularProgress, Typography } from '@mui/material'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
+import SaveAltIcon from '@mui/icons-material/SaveAlt'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import { captureRegion } from '../services/capture.service'
+import { saveToFile, copyToClipboard } from '../services/capture.service'
 import type { CaptureRegion, ScreenshotResult } from '../types/capture'
 import { toDataUrl } from '../types/capture'
 
@@ -28,6 +31,11 @@ export default function CaptureView() {
   const [loading, setLoading] = useState(false)
   // 截图错误
   const [error, setError] = useState<string | null>(null)
+  // 保存/复制状态
+  const [saving, setSaving] = useState(false)
+  const [copying, setCopying] = useState(false)
+  // 提示消息
+  const [message, setMessage] = useState<string | null>(null)
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (result || loading) return
@@ -83,6 +91,34 @@ export default function CaptureView() {
     setError(null)
   }, [])
 
+  const handleSave = useCallback(async () => {
+    if (!result) return
+    setSaving(true)
+    try {
+      const path = await saveToFile(result.imageData)
+      setMessage(`已保存到: ${path}`)
+      setTimeout(() => setMessage(null), 3000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaving(false)
+    }
+  }, [result])
+
+  const handleCopy = useCallback(async () => {
+    if (!result) return
+    setCopying(true)
+    try {
+      await copyToClipboard(result.imageData)
+      setMessage('已复制到剪贴板')
+      setTimeout(() => setMessage(null), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setCopying(false)
+    }
+  }, [result])
+
   // 截图结果展示
   if (result) {
     return (
@@ -113,13 +149,46 @@ export default function CaptureView() {
         />
         <Stack direction="row" spacing={2}>
           <IconButton
+            data-testid="save-to-file"
             color="primary"
+            onClick={handleSave}
+            disabled={saving}
+            sx={{ bgcolor: 'background.paper' }}
+          >
+            {saving ? <CircularProgress size={20} /> : <SaveAltIcon />}
+          </IconButton>
+          <IconButton
+            data-testid="copy-to-clipboard"
+            color="primary"
+            onClick={handleCopy}
+            disabled={copying}
+            sx={{ bgcolor: 'background.paper' }}
+          >
+            {copying ? <CircularProgress size={20} /> : <ContentCopyIcon />}
+          </IconButton>
+          <IconButton
+            color="default"
             onClick={handleCancel}
             sx={{ bgcolor: 'background.paper' }}
           >
             <CloseIcon />
           </IconButton>
         </Stack>
+        {/* 提示消息 */}
+        {message && (
+          <Typography
+            data-testid="capture-message"
+            sx={{
+              bgcolor: 'success.main',
+              color: 'success.contrastText',
+              px: 2,
+              py: 1,
+              borderRadius: 1,
+            }}
+          >
+            {message}
+          </Typography>
+        )}
       </Box>
     )
   }

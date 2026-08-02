@@ -78,3 +78,24 @@
 ### 关键决策
 - 使用 async/await 处理 createWindow 调用
 - 错误通过 console.error 记录，不阻断用户交互
+
+## M5: 截图结果保存/复制到剪贴板 (2026-08-02)
+
+### 完成内容
+- Rust: 添加 arboard 依赖，创建 StorageService 服务
+- Rust: save_to_file 命令：Base64 解码后保存到用户 home 目录
+- Rust: copy_to_clipboard 命令：Base64 → PNG → RGBA → 系统剪贴板
+- Rust: 3 个单元测试 + 2 个命令签名测试
+- 前端: capture.service.ts 添加 saveToFile / copyToClipboard 封装
+- TDD: 4 个前端测试覆盖保存/复制按钮交互
+- CaptureView 结果页：保存/复制/关闭按钮 + 状态提示
+
+### 验证结果
+- npm test: 33 passed (14 CaptureView + 4 MainView + 8 App + 7 capture.service)
+- cargo test: 34 passed
+- npm run build: 成功
+
+### 关键决策
+- arboard 3.4 用于跨平台剪贴板操作
+- 保存到用户 home 目录，文件名格式 snapmaster_{timestamp}.png
+- 保存/复制操作通过 setTimeout 3 秒后自动清除提示消息
