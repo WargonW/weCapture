@@ -5,9 +5,10 @@ import PushPinIcon from '@mui/icons-material/PushPin'
 import ColorizeIcon from '@mui/icons-material/Colorize'
 import type { FeatureEntry } from '../types/window'
 import { createWindow } from '../services/window.service'
+import { CAPTURE_SHORTCUT } from '../services/shortcut.service'
 
 const FEATURES: FeatureEntry[] = [
-  { id: 'screenshot', label: '截图', icon: 'ScreenshotMonitor', windowType: 'capture', shortcut: 'Ctrl+Shift+A' },
+  { id: 'screenshot', label: '截图', icon: 'ScreenshotMonitor', windowType: 'capture', shortcut: CAPTURE_SHORTCUT },
   { id: 'recorder', label: '录屏', icon: 'Videocam', windowType: 'recorder', shortcut: 'Ctrl+Shift+R' },
   { id: 'pin', label: '贴图', icon: 'PushPin', windowType: 'pin', shortcut: 'Ctrl+Shift+P' },
   { id: 'color-picker', label: '取色', icon: 'Colorize', windowType: 'color-picker', shortcut: 'Ctrl+Shift+C' },

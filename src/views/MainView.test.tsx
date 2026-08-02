@@ -79,4 +79,11 @@ describe('MainView 功能卡片点击', () => {
       })
     })
   })
+
+  describe('快捷键提示', () => {
+    it('截图卡片应显示 Ctrl+Shift+S 快捷键', () => {
+      renderView()
+      expect(screen.getByText('Ctrl+Shift+S')).toBeInTheDocument()
+    })
+  })
 })

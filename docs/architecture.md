@@ -42,6 +42,7 @@ src-tauri/                     # Rust 后端
 │   │   ├── recorder_service.rs# (后续) 录屏流程
 │   │   ├── annotation_service.rs # (后续) 标注合成
 │   │   ├── storage_service.rs # (后续) 保存/剪贴板
+│   │   ├── shortcut_service.rs # 全局快捷键注册（Ctrl+Shift+S 触发截图）
 │   │   ├── pin_service.rs     # (后续) 贴图窗口
 │   │   └── color_picker.rs    # (后续) 屏幕取色
 │   │

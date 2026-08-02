@@ -140,3 +140,28 @@
 - composeImage 使用 Canvas 2D API，与 SVG 渲染逻辑保持一致
 - 合成后提取 Base64（去掉 data URL 前缀），传给后端 saveToFile / copyToClipboard
 - 无标注时 composeImage 仍然执行（drawImage + toDataURL），保持统一路径
+
+## M7: 全局快捷键触发截图 (2026-08-02)
+
+### 完成内容
+- Rust: 添加 tauri-plugin-global-shortcut 依赖
+- Rust: shortcut_service 模块，注册 Ctrl+Shift+S 全局快捷键
+  - register_shortcuts: 解析快捷键 + on_shortcut 回调
+  - open_capture_window: 快捷键按下时创建全屏无边框截图窗口（带唯一 label）
+  - 2 个单元测试（常量值 + 时间戳）
+- Rust: lib.rs 注册 global-shortcut 插件，setup 中调用 register_shortcuts
+- 前端: shortcut.service.ts 常量服务（CAPTURE_SHORTCUT + parseShortcut + getCaptureShortcutDisplay）
+- TDD: 6 个 shortcut.service 测试
+- 主窗口: MainView 截图卡片快捷键提示改用常量（原硬编码 Ctrl+Shift+A → Ctrl+Shift+S）
+- TDD: 1 个 MainView 快捷键提示测试
+
+### 验证结果
+- npm test: 73 passed (6 shortcut.service + 5 MainView + 其余 62)
+- cargo test: 36 passed
+- npm run build: 成功
+
+### 关键决策
+- 快捷键注册放在 Rust 端 setup 中，应用启动即生效，无需前端触发
+- CAPTURE_SHORTCUT 常量前后端共用同一值，避免不一致（修复了 MainView 原硬编码 Ctrl+Shift+A 的错误）
+- 截图窗口 label 用时间戳后缀保证唯一，支持多次触发不冲突
+- on_shortcut 仅响应 Pressed 状态，避免释放时重复触发

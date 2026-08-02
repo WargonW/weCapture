@@ -8,6 +8,7 @@ pub mod commands;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -16,6 +17,9 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            // 注册全局快捷键（Ctrl+Shift+S 触发截图）
+            services::shortcut_service::register_shortcuts(app.handle())
+                .map_err(|e| Box::<dyn std::error::Error>::from(e))?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
