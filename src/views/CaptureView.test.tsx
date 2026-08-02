@@ -230,4 +230,166 @@ describe('CaptureView 交互式截图浮层', () => {
       expect(screen.queryByTestId('capture-toolbar')).not.toBeInTheDocument()
     })
   })
+
+  // ========== 标注功能测试 ==========
+
+  /// 辅助：完成截图进入结果页
+  async function enterResultPage() {
+    renderView()
+    const overlay = screen.getByTestId('capture-overlay')
+    fireEvent.mouseDown(overlay, { clientX: 100, clientY: 100 })
+    fireEvent.mouseMove(overlay, { clientX: 300, clientY: 200 })
+    fireEvent.mouseUp(overlay)
+    fireEvent.click(screen.getByTestId('confirm-capture'))
+    await waitFor(() => {
+      expect(screen.getByTestId('capture-result')).toBeInTheDocument()
+    })
+  }
+
+  describe('标注工具栏', () => {
+    it('结果页应显示标注工具栏', async () => {
+      await enterResultPage()
+      expect(screen.getByTestId('annotation-toolbar')).toBeInTheDocument()
+    })
+
+    it('默认工具模式为数字标注', async () => {
+      await enterResultPage()
+      const numberBtn = screen.getByTestId('tool-number')
+      expect(numberBtn).toHaveAttribute('aria-pressed', 'true')
+    })
+  })
+
+  describe('数字圆圈标注（默认模式）', () => {
+    it('点击图片应放置数字圆圈标注，从1开始', async () => {
+      await enterResultPage()
+
+      const img = screen.getByAltText('截图结果')
+      // 模拟 getBoundingClientRect
+      Object.defineProperty(img, 'getBoundingClientRect', {
+        value: () => ({ left: 0, top: 0, width: 200, height: 150, right: 200, bottom: 150 }),
+      })
+
+      fireEvent.click(img, { clientX: 50, clientY: 60 })
+
+      const layer = screen.getByTestId('annotation-layer')
+      const circles = layer.querySelectorAll('circle')
+      expect(circles).toHaveLength(1)
+      expect(circles[0]).toHaveAttribute('cx', '50')
+      expect(circles[0]).toHaveAttribute('cy', '60')
+      expect(circles[0]).toHaveAttribute('fill', '#F44336')
+    })
+
+    it('连续点击应递增序号', async () => {
+      await enterResultPage()
+
+      const img = screen.getByAltText('截图结果')
+      Object.defineProperty(img, 'getBoundingClientRect', {
+        value: () => ({ left: 0, top: 0, width: 200, height: 150, right: 200, bottom: 150 }),
+      })
+
+      fireEvent.click(img, { clientX: 10, clientY: 10 })
+      fireEvent.click(img, { clientX: 50, clientY: 50 })
+      fireEvent.click(img, { clientX: 100, clientY: 100 })
+
+      const texts = screen.getByTestId('annotation-layer').querySelectorAll('text')
+      expect(texts).toHaveLength(3)
+      expect(texts[0]).toHaveTextContent('1')
+      expect(texts[1]).toHaveTextContent('2')
+      expect(texts[2]).toHaveTextContent('3')
+    })
+
+    it('默认颜色为红色 #F44336', async () => {
+      await enterResultPage()
+
+      const img = screen.getByAltText('截图结果')
+      Object.defineProperty(img, 'getBoundingClientRect', {
+        value: () => ({ left: 0, top: 0, width: 200, height: 150, right: 200, bottom: 150 }),
+      })
+
+      fireEvent.click(img, { clientX: 50, clientY: 60 })
+
+      const circle = screen.getByTestId('annotation-layer').querySelector('circle')
+      expect(circle).toHaveAttribute('fill', '#F44336')
+    })
+  })
+
+  describe('颜色切换', () => {
+    it('切换颜色后新标注使用新颜色', async () => {
+      await enterResultPage()
+
+      // 点击蓝色
+      fireEvent.click(screen.getByTestId('color-#2196F3'))
+
+      const img = screen.getByAltText('截图结果')
+      Object.defineProperty(img, 'getBoundingClientRect', {
+        value: () => ({ left: 0, top: 0, width: 200, height: 150, right: 200, bottom: 150 }),
+      })
+
+      fireEvent.click(img, { clientX: 50, clientY: 60 })
+
+      const circle = screen.getByTestId('annotation-layer').querySelector('circle')
+      expect(circle).toHaveAttribute('fill', '#2196F3')
+    })
+  })
+
+  describe('撤销标注', () => {
+    it('点击撤销应移除最后一个标注', async () => {
+      await enterResultPage()
+
+      const img = screen.getByAltText('截图结果')
+      Object.defineProperty(img, 'getBoundingClientRect', {
+        value: () => ({ left: 0, top: 0, width: 200, height: 150, right: 200, bottom: 150 }),
+      })
+
+      fireEvent.click(img, { clientX: 10, clientY: 10 })
+      fireEvent.click(img, { clientX: 50, clientY: 50 })
+      expect(screen.getByTestId('annotation-layer').querySelectorAll('circle')).toHaveLength(2)
+
+      // 点击撤销按钮
+      fireEvent.click(screen.getByTestId('undo-annotation'))
+
+      expect(screen.getByTestId('annotation-layer').querySelectorAll('circle')).toHaveLength(1)
+    })
+  })
+
+  describe('文字标注', () => {
+    it('切换到文字模式后点击应显示输入框', async () => {
+      await enterResultPage()
+
+      // 切换到文字模式
+      fireEvent.click(screen.getByTestId('tool-text'))
+
+      const img = screen.getByAltText('截图结果')
+      Object.defineProperty(img, 'getBoundingClientRect', {
+        value: () => ({ left: 0, top: 0, width: 200, height: 150, right: 200, bottom: 150 }),
+      })
+
+      fireEvent.click(img, { clientX: 50, clientY: 60 })
+
+      expect(screen.getByTestId('text-annotation-input')).toBeInTheDocument()
+    })
+
+    it('输入文字并按 Enter 应创建文字标注', async () => {
+      await enterResultPage()
+
+      fireEvent.click(screen.getByTestId('tool-text'))
+
+      const img = screen.getByAltText('截图结果')
+      Object.defineProperty(img, 'getBoundingClientRect', {
+        value: () => ({ left: 0, top: 0, width: 200, height: 150, right: 200, bottom: 150 }),
+      })
+
+      fireEvent.click(img, { clientX: 50, clientY: 60 })
+
+      const input = screen.getByTestId('text-annotation-input').querySelector('input')!
+      fireEvent.keyDown(input, { key: 'Enter', target: { value: '测试标注' } })
+
+      // 输入框消失
+      expect(screen.queryByTestId('text-annotation-input')).not.toBeInTheDocument()
+      // SVG 中有文字标注
+      const texts = screen.getByTestId('annotation-layer').querySelectorAll('text')
+      expect(texts.length).toBeGreaterThanOrEqual(1)
+      expect(texts[0]).toHaveTextContent('测试标注')
+    })
+  })
 })

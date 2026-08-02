@@ -99,3 +99,26 @@
 - arboard 3.4 用于跨平台剪贴板操作
 - 保存到用户 home 目录，文件名格式 snapmaster_{timestamp}.png
 - 保存/复制操作通过 setTimeout 3 秒后自动清除提示消息
+
+## M6: 截图标注工具 (2026-08-02)
+
+### 完成内容
+- 标注数据模型 types/annotation.ts：Annotation 类型 + 工厂函数 + 序号计算（6 个测试）
+- useAnnotations hook：数字/文字标注增删撤销、工具模式切换、颜色选择（11 个测试）
+- CaptureView 结果页集成标注功能：
+  - 默认数字模式：点击图片放置红色数字圆圈，从1递增
+  - 文字模式：点击后弹出输入框，Enter 确认/Esc 取消
+  - 颜色选择：红/蓝/绿/橙 4 色
+  - 撤销/清除全部
+- SVG 覆盖层渲染标注，不影响图片交互
+- TDD: 7 个 CaptureView 标注交互测试
+
+### 验证结果
+- npm test: 59 passed (7 CaptureView标注 + 11 useAnnotations + 6 annotation + 4 MainView + 8 App + 7 capture.service + 16 CaptureView原有)
+- npm run build: 成功
+
+### 关键决策
+- SVG 覆盖层使用 pointerEvents: 'none'，点击事件由 img 元素处理
+- 数字圆圈半径 20px，白色描边 2px
+- 文字标注用矩形背景 + 文字，宽度根据文字长度计算
+- 默认红色 #F44336，符合需求

@@ -1,13 +1,28 @@
-import { useState, useCallback } from 'react'
-import { Box, IconButton, Stack, CircularProgress, Typography } from '@mui/material'
+import { useState, useCallback, useRef } from 'react'
+import {
+  Box,
+  IconButton,
+  Stack,
+  CircularProgress,
+  Typography,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+} from '@mui/material'
 import CheckIcon from '@mui/icons-material/Check'
 import CloseIcon from '@mui/icons-material/Close'
 import SaveAltIcon from '@mui/icons-material/SaveAlt'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import UndoIcon from '@mui/icons-material/Undo'
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep'
+import FormatListNumberedIcon from '@mui/icons-material/FormatListNumbered'
+import TextFieldsIcon from '@mui/icons-material/TextFields'
 import { captureRegion } from '../services/capture.service'
 import { saveToFile, copyToClipboard } from '../services/capture.service'
 import type { CaptureRegion, ScreenshotResult } from '../types/capture'
 import { toDataUrl } from '../types/capture'
+import { useAnnotations } from '../hooks/useAnnotations'
 
 /// 选区状态
 interface SelectionRect {
@@ -17,25 +32,36 @@ interface SelectionRect {
   height: number
 }
 
+/// 数字标注圆圈半径
+const CIRCLE_RADIUS = 20
+
 /// 截图浮层视图：全屏覆盖，拖拽选区，确认截图
 export default function CaptureView() {
-  // 拖拽起点
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
-  // 当前选区
   const [selection, setSelection] = useState<SelectionRect | null>(null)
-  // 是否正在拖拽
   const [isDragging, setIsDragging] = useState(false)
-  // 截图结果
   const [result, setResult] = useState<ScreenshotResult | null>(null)
-  // 截图加载中
   const [loading, setLoading] = useState(false)
-  // 截图错误
   const [error, setError] = useState<string | null>(null)
-  // 保存/复制状态
   const [saving, setSaving] = useState(false)
   const [copying, setCopying] = useState(false)
-  // 提示消息
   const [message, setMessage] = useState<string | null>(null)
+
+  const {
+    annotations,
+    toolMode,
+    color,
+    pendingText,
+    setToolMode,
+    setColor,
+    addAnnotation,
+    commitText,
+    cancelText,
+    undo,
+    clearAll,
+  } = useAnnotations('#F44336')
+
+  const imgRef = useRef<HTMLImageElement>(null)
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (result || loading) return
@@ -43,7 +69,6 @@ export default function CaptureView() {
     const y = e.clientY
     setDragStart({ x, y })
     setIsDragging(true)
-    // 清除上次选区和结果
     setSelection(null)
     setResult(null)
     setError(null)
@@ -119,7 +144,22 @@ export default function CaptureView() {
     }
   }, [result])
 
-  // 截图结果展示
+  /// 在结果图上点击：添加标注
+  const handleResultClick = useCallback(
+    (e: React.MouseEvent) => {
+      // 如果正在输入文字，不处理点击
+      if (pendingText) return
+      const img = imgRef.current
+      if (!img) return
+      const rect = img.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+      addAnnotation(x, y)
+    },
+    [pendingText, addAnnotation],
+  )
+
+  // 截图结果展示 + 标注
   if (result) {
     return (
       <Box
@@ -131,49 +171,236 @@ export default function CaptureView() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          bgcolor: 'rgba(0, 0, 0, 0.85)',
-          gap: 2,
+          bgcolor: 'rgba(0, 0, 0, 0.9)',
+          gap: 1,
         }}
       >
+        {/* 图片 + SVG 标注层 */}
         <Box
-          component="img"
-          src={toDataUrl(result)}
-          alt="截图结果"
           sx={{
+            position: 'relative',
             maxWidth: '90%',
-            maxHeight: '80%',
-            border: '2px solid',
-            borderColor: 'primary.main',
-            borderRadius: 1,
+            maxHeight: '75%',
           }}
-        />
-        <Stack direction="row" spacing={2}>
+        >
+          <Box
+            component="img"
+            ref={imgRef}
+            src={toDataUrl(result)}
+            alt="截图结果"
+            onClick={handleResultClick}
+            sx={{
+              display: 'block',
+              maxWidth: '100%',
+              maxHeight: '75vh',
+              border: '2px solid',
+              borderColor: 'primary.main',
+              borderRadius: 1,
+              cursor: pendingText ? 'text' : 'crosshair',
+              userSelect: 'none',
+            }}
+          />
+          {/* SVG 标注覆盖层 */}
+          <svg
+            data-testid="annotation-layer"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+            }}
+          >
+            {annotations.map((ann) => {
+              if (ann.type === 'number') {
+                return (
+                  <g key={ann.id} data-testid={`annotation-${ann.id}`}>
+                    <circle
+                      cx={ann.x}
+                      cy={ann.y}
+                      r={CIRCLE_RADIUS}
+                      fill={ann.color}
+                      stroke="white"
+                      strokeWidth="2"
+                    />
+                    <text
+                      x={ann.x}
+                      y={ann.y}
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fill="white"
+                      fontSize="16"
+                      fontWeight="bold"
+                    >
+                      {ann.sequence}
+                    </text>
+                  </g>
+                )
+              }
+              return (
+                <g key={ann.id} data-testid={`annotation-${ann.id}`}>
+                  <rect
+                    x={ann.x - 4}
+                    y={ann.y - 12}
+                    width={(ann.text?.length ?? 0) * 8 + 8}
+                    height="22"
+                    fill={ann.color}
+                    rx="4"
+                    opacity="0.9"
+                  />
+                  <text
+                    x={ann.x}
+                    y={ann.y}
+                    textAnchor="start"
+                    dominantBaseline="central"
+                    fill="white"
+                    fontSize="14"
+                    fontWeight="bold"
+                  >
+                    {ann.text}
+                  </text>
+                </g>
+              )
+            })}
+          </svg>
+
+          {/* 文字输入框 */}
+          {pendingText && (
+            <Box
+              sx={{
+                position: 'absolute',
+                left: pendingText.x,
+                top: pendingText.y,
+                zIndex: 10,
+              }}
+            >
+              <TextField
+                data-testid="text-annotation-input"
+                size="small"
+                autoFocus
+                placeholder="输入标注文字..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitText((e.target as HTMLInputElement).value)
+                  } else if (e.key === 'Escape') {
+                    cancelText()
+                  }
+                }}
+                onBlur={(e) => commitText(e.target.value)}
+                sx={{
+                  bgcolor: 'background.paper',
+                  borderRadius: 1,
+                  '& .MuiInput-root': { fontSize: 14 },
+                }}
+              />
+            </Box>
+          )}
+        </Box>
+
+        {/* 工具栏 */}
+        <Stack
+          data-testid="annotation-toolbar"
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          sx={{
+            bgcolor: 'background.paper',
+            borderRadius: 2,
+            p: 1,
+            boxShadow: 3,
+          }}
+        >
+          {/* 工具模式切换 */}
+          <ToggleButtonGroup
+            value={toolMode}
+            exclusive
+            size="small"
+            onChange={(_, val) => val && setToolMode(val)}
+          >
+            <ToggleButton value="number" data-testid="tool-number">
+              <Tooltip title="数字标注">
+                <FormatListNumberedIcon fontSize="small" />
+              </Tooltip>
+            </ToggleButton>
+            <ToggleButton value="text" data-testid="tool-text">
+              <Tooltip title="文字标注">
+                <TextFieldsIcon fontSize="small" />
+              </Tooltip>
+            </ToggleButton>
+          </ToggleButtonGroup>
+
+          {/* 颜色选择 */}
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
+            {['#F44336', '#2196F3', '#4CAF50', '#FF9800'].map((c) => (
+              <Box
+                key={c}
+                data-testid={`color-${c}`}
+                onClick={() => setColor(c)}
+                sx={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  bgcolor: c,
+                  cursor: 'pointer',
+                  border: color === c ? '3px solid white' : '2px solid transparent',
+                  boxShadow: color === c ? '0 0 0 2px #1976d2' : 'none',
+                }}
+              />
+            ))}
+          </Box>
+
+          {/* 撤销 */}
+          <IconButton
+            size="small"
+            data-testid="undo-annotation"
+            onClick={undo}
+            disabled={annotations.length === 0}
+          >
+            <UndoIcon fontSize="small" />
+          </IconButton>
+
+          {/* 清除全部 */}
+          <IconButton
+            size="small"
+            data-testid="clear-annotations"
+            onClick={clearAll}
+            disabled={annotations.length === 0}
+          >
+            <DeleteSweepIcon fontSize="small" />
+          </IconButton>
+
+          {/* 分隔线 */}
+          <Box sx={{ width: 1, height: 28, bgcolor: 'divider' }} />
+
+          {/* 保存 */}
           <IconButton
             data-testid="save-to-file"
+            size="small"
             color="primary"
             onClick={handleSave}
             disabled={saving}
-            sx={{ bgcolor: 'background.paper' }}
           >
-            {saving ? <CircularProgress size={20} /> : <SaveAltIcon />}
+            {saving ? <CircularProgress size={18} /> : <SaveAltIcon fontSize="small" />}
           </IconButton>
+
+          {/* 复制 */}
           <IconButton
             data-testid="copy-to-clipboard"
+            size="small"
             color="primary"
             onClick={handleCopy}
             disabled={copying}
-            sx={{ bgcolor: 'background.paper' }}
           >
-            {copying ? <CircularProgress size={20} /> : <ContentCopyIcon />}
+            {copying ? <CircularProgress size={18} /> : <ContentCopyIcon fontSize="small" />}
           </IconButton>
-          <IconButton
-            color="default"
-            onClick={handleCancel}
-            sx={{ bgcolor: 'background.paper' }}
-          >
-            <CloseIcon />
+
+          {/* 关闭 */}
+          <IconButton size="small" onClick={handleCancel}>
+            <CloseIcon fontSize="small" />
           </IconButton>
         </Stack>
+
         {/* 提示消息 */}
         {message && (
           <Typography
@@ -182,11 +409,26 @@ export default function CaptureView() {
               bgcolor: 'success.main',
               color: 'success.contrastText',
               px: 2,
-              py: 1,
+              py: 0.5,
               borderRadius: 1,
             }}
           >
             {message}
+          </Typography>
+        )}
+
+        {/* 错误提示 */}
+        {error && (
+          <Typography
+            sx={{
+              bgcolor: 'error.main',
+              color: 'error.contrastText',
+              px: 2,
+              py: 0.5,
+              borderRadius: 1,
+            }}
+          >
+            {error}
           </Typography>
         )}
       </Box>
@@ -207,7 +449,6 @@ export default function CaptureView() {
         userSelect: 'none',
       }}
     >
-      {/* 选区框 */}
       {selection && selection.width > 0 && selection.height > 0 && (
         <Box
           data-testid="selection-box"
@@ -225,7 +466,6 @@ export default function CaptureView() {
         />
       )}
 
-      {/* 操作栏：拖拽结束后显示 */}
       {selection && !isDragging && selection.width > 0 && selection.height > 0 && (
         <Box
           data-testid="capture-toolbar"
@@ -261,7 +501,6 @@ export default function CaptureView() {
         </Box>
       )}
 
-      {/* 错误提示 */}
       {error && (
         <Box
           sx={{
