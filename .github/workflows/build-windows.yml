@@ -1,0 +1,53 @@
+name: Build Windows Portable
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+
+jobs:
+  build-portable:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      RUST_BACKTRACE: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Setup Rust (MSVC)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend deps
+        run: npm ci
+
+      # beforeBuildCommand(npm run build) 由 tauri 自动执行
+      - name: Build Tauri portable (exe, no installer)
+        run: npm run tauri build -- --no-bundle
+
+      - name: Package portable zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist_portable | Out-Null
+          Copy-Item src-tauri\target\release\snapmaster.exe dist_portable\snapmaster.exe
+          Compress-Archive -Path dist_portable\* -DestinationPath snapmaster-windows-portable.zip -Force
+          Get-FileHash snapmaster-windows-portable.zip -Algorithm SHA256 | Select-Object Hash, Path
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapmaster-windows-portable
+          path: snapmaster-windows-portable.zip
+          if-no-files-found: error
