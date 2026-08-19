@@ -22,6 +22,18 @@ pub fn run() {
             }
             // 录屏服务（全局单例，跨命令保持会话状态）
             app.manage(services::recorder_service::RecorderService::new());
+            // 待办服务：初始化 SQLite 并建表（app_data_dir/todos.db）
+            let todos_db = app
+                .path()
+                .app_data_dir()
+                .map(|d| {
+                    std::fs::create_dir_all(&d).ok();
+                    d.join("todos.db")
+                })
+                .unwrap_or_else(|_| std::path::PathBuf::from("todos.db"));
+            let todo_svc = services::todo_service::TodoService::open(&todos_db)
+                .map_err(|e| Box::<dyn std::error::Error>::from(format!("待办库初始化失败: {e}")))?;
+            app.manage(todo_svc);
             // 加载用户快捷键配置并注册全局快捷键
             let config = services::shortcut_config::ShortcutConfig::load(app.handle());
             services::shortcut_service::register_all(app.handle(), &config)
@@ -47,6 +59,8 @@ pub fn run() {
             commands::recorder_cmd::stop_recorder,
             commands::recorder_cmd::cancel_recorder,
             commands::recorder_cmd::recorder_state,
+            commands::todo_cmd::list_todos,
+            commands::todo_cmd::create_todo,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

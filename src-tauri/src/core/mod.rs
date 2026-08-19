@@ -4,4 +4,5 @@ pub mod color;
 pub mod gif;
 pub mod recorder;
 pub mod screenshot;
+pub mod todo;
 pub mod window_config;
