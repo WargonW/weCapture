@@ -52,13 +52,13 @@ describe('MainView 功能卡片点击', () => {
     })
   })
 
-  describe('截图卡片', () => {
-    it('点击截图卡片应调用 createWindow("capture")', async () => {
+  describe('截图工具', () => {
+    it('点击截图工具项应调用 createWindow("capture")', async () => {
       renderView()
-      const screenshotCard = screen.getByText('截图').closest('button')
-      expect(screenshotCard).toBeInTheDocument()
+      const screenshotTool = screen.getByTestId('tool-item-screenshot')
+      expect(screenshotTool).toBeInTheDocument()
 
-      fireEvent.click(screenshotCard!)
+      fireEvent.click(screenshotTool!)
 
       await waitFor(() => {
         expect(createWindowMock).toHaveBeenCalledWith('capture')
@@ -66,13 +66,13 @@ describe('MainView 功能卡片点击', () => {
     })
   })
 
-  describe('录屏卡片', () => {
-    it('点击录屏卡片应调用 createWindow("recorder")', async () => {
+  describe('录屏工具', () => {
+    it('点击录屏工具项应调用 createWindow("recorder")', async () => {
       renderView()
-      const recorderCard = screen.getByText('录屏').closest('button')
-      expect(recorderCard).toBeInTheDocument()
+      const recorderTool = screen.getByTestId('tool-item-recorder')
+      expect(recorderTool).toBeInTheDocument()
 
-      fireEvent.click(recorderCard!)
+      fireEvent.click(recorderTool!)
 
       await waitFor(() => {
         expect(createWindowMock).toHaveBeenCalledWith('recorder')
@@ -80,13 +80,13 @@ describe('MainView 功能卡片点击', () => {
     })
   })
 
-  describe('贴图卡片', () => {
-    it('点击贴图卡片应调用 createWindow("pin")', async () => {
+  describe('贴图工具', () => {
+    it('点击贴图工具项应调用 createWindow("pin")', async () => {
       renderView()
-      const pinCard = screen.getByText('贴图').closest('button')
-      expect(pinCard).toBeInTheDocument()
+      const pinTool = screen.getByTestId('tool-item-pin')
+      expect(pinTool).toBeInTheDocument()
 
-      fireEvent.click(pinCard!)
+      fireEvent.click(pinTool!)
 
       await waitFor(() => {
         expect(createWindowMock).toHaveBeenCalledWith('pin')
@@ -94,13 +94,13 @@ describe('MainView 功能卡片点击', () => {
     })
   })
 
-  describe('取色卡片', () => {
-    it('点击取色卡片应调用 createWindow("color-picker")', async () => {
+  describe('取色工具', () => {
+    it('点击取色工具项应调用 createWindow("color-picker")', async () => {
       renderView()
-      const colorCard = screen.getByText('取色').closest('button')
-      expect(colorCard).toBeInTheDocument()
+      const colorTool = screen.getByTestId('tool-item-color-picker')
+      expect(colorTool).toBeInTheDocument()
 
-      fireEvent.click(colorCard!)
+      fireEvent.click(colorTool!)
 
       await waitFor(() => {
         expect(createWindowMock).toHaveBeenCalledWith('color-picker')
