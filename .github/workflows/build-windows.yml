@@ -33,6 +33,25 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
+      # Windows runner 的 CMake>=4.0 已移除对 <3.5 旧语法(cmake_minimum_required)的兼容，
+      # 而 audiopus_sys 0.2.2 / openh264 等 C 依赖仍用极旧版本号，导致 CMake 配置失败。
+      # 这里统一把 registry 下 CMakeLists 的 cmake_minimum_required 抬升到 3.16。
+      - name: Patch legacy cmake_minimum_required in C deps
+        shell: pwsh
+        run: |
+          $reg = Join-Path $env:USERPROFILE '.cargo\registry\src'
+          $hits = Get-ChildItem -Path $reg -Recurse -File -Filter CMakeLists.txt
+          $n = 0
+          foreach ($f in $hits) {
+            $c = Get-Content -Path $f.FullName -Raw
+            $c2 = $c -replace 'cmake_minimum_required\(VERSION\s+[0-9.]+\)', 'cmake_minimum_required(VERSION 3.16)'
+            if ($c2 -ne $c) {
+              Set-Content -Path $f.FullName -Value $c2 -NoNewline
+              $n++
+            }
+          }
+          Write-Host "Patched $n CMakeLists.txt file(s)"
+
       # beforeBuildCommand(npm run build) 由 tauri 自动执行
       - name: Build Tauri portable (exe, no installer)
         run: npm run tauri build -- --no-bundle
