@@ -1,8 +1,8 @@
 # SnapMaster 综合文档
 
-SnapMaster 是一款基于 Tauri 2 的跨平台桌面截图工具。后端 Rust，前端 React + TypeScript + Vite。核心能力：**截图、录屏、贴图、取色**，支持全局快捷键与用户自定义快捷键。
+SnapMaster 是一款基于 Tauri 2 的**综合办公桌面工作台**。后端 Rust，前端 React + TypeScript + Vite。在原有通用工具（**截图、录屏、贴图、取色**，支持全局快捷键）基础上，按**模块化设计**扩展办公数据型功能，首个办公模块为**待办事项**。
 
-> 本文档由原 architecture.md、project-analysis.md、dev-log.md 合并而来。
+> 本文档由原 architecture.md、project-analysis.md、dev-log.md 合并而来。办公改造设计见[第 10 章](#10-办公项目改造设计待办)。
 
 ## 目录
 
@@ -15,6 +15,7 @@ SnapMaster 是一款基于 Tauri 2 的跨平台桌面截图工具。后端 Rust�
 - [7. 测试与质量](#7-测试与质量)
 - [8. 迭代计划](#8-迭代计划)
 - [9. 开发日志](#9-开发日志)
+- [10. 办公项目改造设计（待办）](#10-办公项目改造设计待办)
 
 ---
 
@@ -31,14 +32,15 @@ SnapMaster 是一款基于 Tauri 2 的跨平台桌面截图工具。后端 Rust�
 | 测试 | Vitest（前端）+ cargo test（后端） |
 | 入口 | 主窗口 480×600，功能窗口动态创建 |
 
-### 1.2 四大业务模块
+### 1.2 五大业务模块
 
-| 模块 | 入口 | 触发方式 | 核心能力 |
-|------|------|----------|----------|
-| 截图 screenshot | CaptureView | 卡片 / Ctrl+Shift+S | 全屏、选区截图、像素取色、标注、保存/复制/贴图 |
-| 录屏 recorder | RecorderView | 卡片 / Ctrl+Shift+R | MP4（H.264 + Opus 系统音频）、GIF 录制 |
-| 贴图 pin | PinView | 截图结果页 | 跨窗口贴图、拖动、缩放、复制/保存 |
-| 取色 color-picker | ColorPickerView | 卡片 / Ctrl+Shift+C | 实时取色、放大镜、HEX/RGB 复制 |
+| 模块 | 类型 | 入口 | 核心能力 |
+|------|------|------|----------|
+| 截图 screenshot | 工具型 | CaptureView（浮动窗）/ Ctrl+Shift+S | 全屏、选区截图、像素取色、标注、保存/复制/贴图 |
+| 录屏 recorder | 工具型 | RecorderView（浮动窗）/ Ctrl+Shift+R | MP4（H.264 + Opus 系统音频）、GIF 录制 |
+| 贴图 pin | 工具型 | 截图结果页 | 跨窗口贴图、拖动、缩放、复制/保存 |
+| 取色 color-picker | 工具型 | ColorPickerView（浮动窗）/ Ctrl+Shift+C | 实时取色、放大镜、HEX/RGB 复制 |
+| 待办 todo | 数据型 | 工作台内容区视图 | 新建/勾选/删改待办，状态筛选，持久化 |
 
 ### 1.3 功能能力矩阵
 
@@ -320,6 +322,9 @@ Idle ──start──▶ Recording ──stop──▶ Stopped ──reset─�
 | P3 | M13: 截图全屏选项 + 多屏兼容 | ✅ 完成 |
 | P4 | M14-M15: 增强功能 | 待开发 |
 | P5 | M16-M18: 完善 | 待开发 |
+| O1 | T1: 工作台骨架（侧边栏 + 模块清单） | 待开发 |
+| O1 | T2: 待办后端 CRUD + 前端列表/新建 | 待开发 |
+| O1 | T3: 待办完整交互（勾选/删除/筛选） | 待开发 |
 
 ---
 
@@ -771,3 +776,87 @@ Idle ──start──▶ Recording ──stop──▶ Stopped ──reset─�
 - 截图窗口仍单屏全屏（在主显示器），多屏选区由用户主动选择目标显示器
 - 顶部工具栏 onMouseDown stopPropagation：点击工具栏不触发底层选区拖拽
 - 切换显示器时清除选区：避免选区坐标与新显示器不匹配
+
+---
+
+## 10. 办公项目改造设计（待办）
+
+> 讨论结论：将 SnapMaster 升级为**综合办公桌面工作台**，按模块化设计承载「工具型」与「数据型」两类功能。首个办公数据型模块为**待办事项**。
+
+### 10.1 整体架构：工作台 + 工具模块
+
+```
+┌───────────────────────────────────────────────┐
+│ 主窗口 = 工作台                                 │
+│ ┌──────────┬────────────────────────────────┐ │
+│ │ 侧边栏    │ 内容区（按选中模块渲染）           │ │
+│ │ SnapMaster│                                │ │
+│ │ ─────────│   [待办] 列表 / 过滤 / 新建      │ │
+│ │ 📌 待办   │                                │ │
+│ │ ⚙️ 设置   │                                │ │
+│ │ ─────────│  (工具型在窗口外触发)            │ │
+│ │ ✂ 截图 / 录屏 / 贴图 / 取色                │ │
+│ └──────────┴────────────────────────────────┘ │
+└───────────────────────────────────────────────┘
+```
+
+- **数据型模块**（如待办）：在主窗口内容区以视图渲染，常驻，共享持久化层
+- **工具型模块**（截图/录屏/贴图/取色）：保留现有独立浮动窗口机制，侧边栏仅作入口触发
+
+### 10.2 模块注册机制（前端集中清单）
+
+```ts
+interface Module {
+  id: 'todo' | 'screenshot' | 'recorder' | 'pin' | 'color-picker';
+  label: string;
+  icon: ReactNode;
+  type: 'data' | 'tool';      // 数据型=主窗口视图；工具型=浮动窗口
+  view?: React.ComponentType; // 数据型提供视图
+  windowType?: string;        // 工具型关联窗口类型
+}
+```
+
+- `App.tsx` 现有 `?window=` 分发**保留**，专用于工具型浮动窗口
+- 主窗口用内部状态渲染数据型模块视图，`Sidebar` 从单个 `modules` 清单生成导航项
+- 新增模块 = 清单加一项 + 对应视图/命令，不改主框架
+
+### 10.3 Rust 端分模块
+
+待办模块依循既有的 core → services → commands 三层：
+- `core/todo.rs`（模型 + 校验）
+- `services/todo_service.rs`（SQLite CRUD）
+- `commands/todo_cmd.rs`（命令）
+- `lib.rs` 注册 `tauri-plugin-sql` 插件 + todo 命令
+
+### 10.4 待办数据设计
+
+```sql
+CREATE TABLE IF NOT EXISTS todos (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  title      TEXT    NOT NULL,
+  done       INTEGER NOT NULL DEFAULT 0,
+  priority   INTEGER NOT NULL DEFAULT 0,   -- 0低/1中/2高
+  due_date   TEXT,                          -- 可选，YYYY-MM-DD
+  created_at TEXT    NOT NULL,
+  updated_at TEXT    NOT NULL
+);
+```
+
+命令：`list_todos` / `create_todo` / `update_todo` / `delete_todo` / `toggle_todo`
+
+### 10.5 待办视图交互（初版）
+
+- 状态筛选 Tab：全部 / 进行中 / 已完成
+- 新建：顶部输入框回车创建（标题必填）
+- 列表：勾选完成 / 删除
+- 字段范围：标题 + 完成状态 + 优先级 + 截止日期
+
+### 10.6 开发节奏（TDD）
+
+| MVU | 内容 | 验证 |
+|-----|------|------|
+| T1 | 工作台骨架：侧边栏 + 模块清单 + 空内容区 | npm test / cargo test / build |
+| T2 | 建表 + list/create CRUD + 前端列表/新建 | CRUD 测试 + 渲染测试 |
+| T3 | 勾选/删除/优先级/筛选完整交互 | 交互测试 |
+
+开发实时同步本文档 + 开发日志。
