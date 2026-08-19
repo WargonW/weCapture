@@ -300,8 +300,8 @@ Idle ──start──▶ Recording ──stop──▶ Stopped ──reset─�
 
 | 环境 | 计数 | 说明 |
 |------|------|------|
-| 前端 `npm test` | 188 passed（15 文件） | Vitest + RTL + jsdom |
-| 后端 `cargo test` | 159 passed | 含 mockall |
+| 前端 `npm test` | 209 passed（18 文件） | Vitest + RTL + jsdom |
+| 后端 `cargo test` | 174 passed | 含 mockall |
 | 构建 | `npm run build` / `cargo build` 通过 | 含 `--features audio` |
 
 测试覆盖：视图交互、services、核心模型、命令签名、色彩转换、录屏状态机、快捷键录制等。
@@ -323,8 +323,8 @@ Idle ──start──▶ Recording ──stop──▶ Stopped ──reset─�
 | P4 | M14-M15: 增强功能 | 待开发 |
 | P5 | M16-M18: 完善 | 待开发 |
 | O1 | T1: 工作台骨架（侧边栏 + 模块清单） | ✅ 完成 |
-| O1 | T2: 待办后端 CRUD + 前端列表/新建 | 待开发 |
-| O1 | T3: 待办完整交互（勾选/删除/筛选） | 待开发 |
+| O1 | T2: 待办后端 CRUD + 前端列表/新建 | ✅ 完成 |
+| O1 | T3: 待办完整交互（勾选/删除/筛选） | ✅ 完成 |
 
 ---
 
@@ -776,6 +776,58 @@ Idle ──start──▶ Recording ──stop──▶ Stopped ──reset─�
 - 截图窗口仍单屏全屏（在主显示器），多屏选区由用户主动选择目标显示器
 - 顶部工具栏 onMouseDown stopPropagation：点击工具栏不触发底层选区拖拽
 - 切换显示器时清除选区：避免选区坐标与新显示器不匹配
+
+---
+
+### T1: 工作台骨架（侧边栏 + 模块清单）
+
+**完成内容**
+- 前端: src/modules/index.ts 模块集中清单（Module 接口 + MODULES 数组）
+  - 区分 data（主窗口视图）/ tool（浮动窗口）两类
+  - todo 加入数据型，screenshot/recorder/pin/color-picker 保留工具型
+- 前端: components/WorkspaceLayout.tsx 工作台布局
+  - 左侧导航栏：数据型模块 + 工具型入口 + 设置
+  - 右侧内容区：按选中模块渲染视图
+  - 工具型显示快捷键提示（从配置动态读取）
+- 前端: views/MainView.tsx 由卡片墙改造为工作台布局
+- TDD: 6 个 WorkspaceLayout 测试 + MainView 工具项点击测试
+
+### T2: 待办后端 CRUD + 前端列表/新建
+
+**完成内容**
+- Rust: core/todo.rs 待办领域模型（Todo / TodoInput / TodoPriority）
+  - is_valid 校验标题必填 + 优先级 0-2；normalized 规范化
+- Rust: services/todo_service.rs SQLite 持久化
+  - open / in_memory / list / create（interval 建表）
+  - 数据文件 app_data_dir/todos.db
+- Rust: commands/todo_cmd.rs list_todos / create_todo
+- Rust: Cargo.toml 添加 rusqlite 0.32（bundled）
+- 前端: services/todo.service.ts 类型 + listTodos / createTodo
+- 前端: views/TodoView.tsx 列表加载 + 顶部新建（标题必填，回车添加）
+- TDD: service 与视图测试
+
+### T3: 待办完整交互（勾选/删除/筛选）
+
+**完成内容**
+- Rust: services/todo_service.rs 扩展 toggle / delete / update
+- Rust: commands/todo_cmd.rs 注册 toggle_todo / delete_todo / update_todo，lib.rs 注册
+- 前端: services/todo.service.ts 扩展 toggleTodo / deleteTodo / updateTodo
+- 前端: views/TodoView.tsx 完整交互
+  - 状态筛选 Tab：全部 / 进行中 / 已完成
+  - 每项勾选 Checkbox 切换完成（完成显示删除线）
+  - 删除按钮移除
+  - 新建优先级选择（低/中/高 ToggleButtonGroup）
+- TDD: service + 视图交互测试
+
+**验证结果**
+- npm test: 209 passed（18 文件）
+- cargo test: 174 passed
+- npm run build: 成功
+
+**关键决策**
+- 待办持久化用 rusqlite 直接建表，如未来多模块共享数据可平滑迁移到 tauri-plugin-sql
+- toggle/delete/update 均返回影响结果（None/false 表示不存在），前端据此更新列表保持一致
+- 筛选为前端本地过滤（全部数据一次拉取），符合待办规模，避免过度设计
 
 ---
 

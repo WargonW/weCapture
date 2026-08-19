@@ -61,6 +61,9 @@ pub fn run() {
             commands::recorder_cmd::recorder_state,
             commands::todo_cmd::list_todos,
             commands::todo_cmd::create_todo,
+            commands::todo_cmd::toggle_todo,
+            commands::todo_cmd::delete_todo,
+            commands::todo_cmd::update_todo,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

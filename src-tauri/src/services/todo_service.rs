@@ -71,6 +71,52 @@ impl TodoService {
             ],
         )?;
         let id = conn.last_insert_rowid();
+        Self::get(&conn, id)
+    }
+
+    /// 切换完成状态并返回更新后的 Todo（不存在返回 None）
+    pub fn toggle(&self, id: i64) -> rusqlite::Result<Option<Todo>> {
+        let conn = self.conn.lock().expect("todo conn lock");
+        let now = timestamp_now();
+        let affected = conn.execute(
+            "UPDATE todos
+              SET done = CASE WHEN done = 0 THEN 1 ELSE 0 END,
+                  updated_at = ?2
+            WHERE id = ?1",
+            rusqlite::params![id, now],
+        )?;
+        if affected == 0 {
+            return Ok(None);
+        }
+        Self::get(&conn, id).map(Some)
+    }
+
+    /// 删除待办，返回是否命中并删除
+    pub fn delete(&self, id: i64) -> rusqlite::Result<bool> {
+        let conn = self.conn.lock().expect("todo conn lock");
+        let affected = conn.execute("DELETE FROM todos WHERE id = ?1", [id])?;
+        Ok(affected > 0)
+    }
+
+    /// 更新待办（标题/优先级/截止日期），不存在返回 None
+    pub fn update(&self, id: i64, input: &TodoInput) -> rusqlite::Result<Option<Todo>> {
+        let input = input.normalized();
+        let now = timestamp_now();
+        let conn = self.conn.lock().expect("todo conn lock");
+        let affected = conn.execute(
+            "UPDATE todos
+              SET title = ?2, priority = ?3, due_date = ?4, updated_at = ?5
+            WHERE id = ?1",
+            rusqlite::params![id, input.title, input.priority, input.due_date, now],
+        )?;
+        if affected == 0 {
+            return Ok(None);
+        }
+        Self::get(&conn, id).map(Some)
+    }
+
+    /// 按 id 查询单条待办
+    fn get(conn: &Connection, id: i64) -> rusqlite::Result<Todo> {
         let mut stmt = conn.prepare(
             "SELECT id, title, done, priority, due_date, created_at, updated_at
              FROM todos WHERE id = ?1",
@@ -136,5 +182,68 @@ mod tests {
         assert_eq!(all.len(), 2);
         assert_eq!(all[0].title, "a");
         assert_eq!(all[1].due_date.as_deref(), Some("2026-08-20"));
+    }
+
+    #[test]
+    fn toggle_切换完成状态() {
+        let svc = TodoService::in_memory().unwrap();
+        let todo = svc.create(&TodoInput { title: "a".into(), priority: 0, due_date: None }).unwrap();
+        assert!(!todo.done);
+
+        let toggled = svc.toggle(todo.id).unwrap().expect("存在");
+        assert!(toggled.done);
+        assert_eq!(toggled.id, todo.id);
+
+        let untoggled = svc.toggle(todo.id).unwrap().expect("存在");
+        assert!(!untoggled.done);
+    }
+
+    #[test]
+    fn toggle_不存在返回None() {
+        let svc = TodoService::in_memory().unwrap();
+        assert_eq!(svc.toggle(999).unwrap(), None);
+    }
+
+    #[test]
+    fn delete_删除命中返回true() {
+        let svc = TodoService::in_memory().unwrap();
+        let todo = svc.create(&TodoInput { title: "a".into(), priority: 0, due_date: None }).unwrap();
+        assert!(svc.delete(todo.id).unwrap());
+        assert!(svc.list().unwrap().is_empty());
+    }
+
+    #[test]
+    fn delete_不存在返回false() {
+        let svc = TodoService::in_memory().unwrap();
+        assert!(!svc.delete(999).unwrap());
+    }
+
+    #[test]
+    fn update_修改字段并保留下单() {
+        let svc = TodoService::in_memory().unwrap();
+        let todo = svc.create(&TodoInput { title: "a".into(), priority: 0, due_date: None }).unwrap();
+        let updated = svc
+            .update(
+                todo.id,
+                &TodoInput {
+                    title: " 新标题 ".into(),
+                    priority: 2,
+                    due_date: Some("2026-09-01".into()),
+                },
+            )
+            .unwrap()
+            .expect("存在");
+        assert_eq!(updated.title, "新标题");
+        assert_eq!(updated.priority, 2);
+        assert_eq!(updated.due_date.as_deref(), Some("2026-09-01"));
+        assert_eq!(updated.done, todo.done);
+        assert_eq!(svc.list().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn update_不存在返回None() {
+        let svc = TodoService::in_memory().unwrap();
+        let upd = svc.update(999, &TodoInput { title: "x".into(), priority: 0, due_date: None });
+        assert_eq!(upd.unwrap(), None);
     }
 }

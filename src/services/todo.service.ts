@@ -32,3 +32,23 @@ export async function createTodo(input: CreateTodoInput): Promise<Todo> {
     dueDate: input.dueDate ?? null,
   })
 }
+
+/// 切换完成状态
+export async function toggleTodo(id: number): Promise<Todo | null> {
+  return invoke<Todo | null>('toggle_todo', { id })
+}
+
+/// 删除待办
+export async function deleteTodo(id: number): Promise<boolean> {
+  return invoke<boolean>('delete_todo', { id })
+}
+
+/// 更新待办（标题必填）
+export async function updateTodo(id: number, input: CreateTodoInput): Promise<Todo | null> {
+  return invoke<Todo | null>('update_todo', {
+    id,
+    title: input.title,
+    priority: input.priority ?? 0,
+    dueDate: input.dueDate ?? null,
+  })
+}
