@@ -62,7 +62,8 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist_portable | Out-Null
-          Copy-Item src-tauri\target\release\snapmaster.exe dist_portable\snapmaster.exe
+          # Rust 可执行名取自 Cargo 包名(app)，productName 只用于安装器命名
+          Copy-Item src-tauri\target\release\app.exe dist_portable\snapmaster.exe
           Compress-Archive -Path dist_portable\* -DestinationPath snapmaster-windows-portable.zip -Force
           Get-FileHash snapmaster-windows-portable.zip -Algorithm SHA256 | Select-Object Hash, Path
 
