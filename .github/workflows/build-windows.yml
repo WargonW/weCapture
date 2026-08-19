@@ -39,6 +39,8 @@ jobs:
       - name: Patch legacy cmake_minimum_required in C deps
         shell: pwsh
         run: |
+          # 先拉取 Rust 依赖到本地 registry（此时尚无源码目录，cargo build 才会 fetch）
+          cargo fetch --manifest-path src-tauri/Cargo.toml
           $reg = Join-Path $env:USERPROFILE '.cargo\registry\src'
           $hits = Get-ChildItem -Path $reg -Recurse -File -Filter CMakeLists.txt
           $n = 0
