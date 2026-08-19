@@ -14,10 +14,21 @@ import {
   Tab,
   ToggleButtonGroup,
   ToggleButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
-import { listTodos, createTodo, toggleTodo, deleteTodo } from '../services/todo.service'
+import EditIcon from '@mui/icons-material/Edit'
+import {
+  listTodos,
+  createTodo,
+  toggleTodo,
+  deleteTodo,
+  updateTodo,
+} from '../services/todo.service'
 import type { Todo, TodoPriority } from '../services/todo.service'
 
 const PRIORITY_LABEL: Record<TodoPriority, string> = {
@@ -40,14 +51,21 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'done', label: '已完成' },
 ]
 
-/// 待办事项视图：加载列表 + 筛选 + 新建 + 勾选/删除
+/// 待办事项视图：加载列表 + 筛选 + 新建 + 勾选/删除/编辑
 export default function TodoView() {
   const [todos, setTodos] = useState<Todo[]>([])
   const [title, setTitle] = useState('')
+  const [dueDate, setDueDate] = useState('')
   const [priority, setPriority] = useState<TodoPriority>(0)
   const [filter, setFilter] = useState<Filter>('all')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // 编辑弹窗状态
+  const [editing, setEditing] = useState<Todo | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDueDate, setEditDueDate] = useState('')
+  const [editPriority, setEditPriority] = useState<TodoPriority>(0)
 
   const loadAll = () => {
     setLoading(true)
@@ -66,9 +84,10 @@ export default function TodoView() {
     const trimmed = title.trim()
     if (!trimmed) return
     try {
-      const created = await createTodo({ title: trimmed, priority })
+      const created = await createTodo({ title: trimmed, priority, dueDate: dueDate || null })
       setTodos((prev) => [...prev, created])
       setTitle('')
+      setDueDate('')
     } catch (e) {
       setError(String(e))
     }
@@ -96,6 +115,37 @@ export default function TodoView() {
     }
   }
 
+  const openEdit = (todo: Todo) => {
+    setEditing(todo)
+    setEditTitle(todo.title)
+    setEditDueDate(todo.dueDate ?? '')
+    setEditPriority(todo.priority)
+  }
+
+  const closeEdit = () => {
+    setEditing(null)
+    setError(null)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editing) return
+    const trimmed = editTitle.trim()
+    if (!trimmed) return
+    try {
+      const updated = await updateTodo(editing.id, {
+        title: trimmed,
+        priority: editPriority,
+        dueDate: editDueDate || null,
+      })
+      if (updated) {
+        setTodos((prev) => prev.map((t) => (t.id === editing.id ? updated : t)))
+      }
+      closeEdit()
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
   const filtered =
     filter === 'all'
       ? todos
@@ -109,11 +159,7 @@ export default function TodoView() {
         待办事项
       </Typography>
 
-      <Tabs
-        value={filter}
-        onChange={(_, v: Filter) => setFilter(v)}
-        data-testid="todo-filter"
-      >
+      <Tabs value={filter} onChange={(_, v: Filter) => setFilter(v)} data-testid="todo-filter">
         {FILTERS.map((f) => (
           <Tab
             key={f.value}
@@ -135,6 +181,14 @@ export default function TodoView() {
             if (e.key === 'Enter') handleAdd()
           }}
           inputProps={{ 'data-testid': 'todo-input' }}
+        />
+        <TextField
+          size="small"
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          inputProps={{ 'data-testid': 'todo-due' }}
+          sx={{ width: 150 }}
         />
         <ToggleButtonGroup
           size="small"
@@ -178,14 +232,24 @@ export default function TodoView() {
               key={todo.id}
               divider
               secondaryAction={
-                <IconButton
-                  edge="end"
-                  aria-label="删除"
-                  onClick={() => handleDelete(todo.id)}
-                  data-testid={`todo-delete-${todo.id}`}
-                >
-                  <DeleteIcon fontSize="small" />
-                </IconButton>
+                <>
+                  <IconButton
+                    edge="end"
+                    aria-label="编辑"
+                    onClick={() => openEdit(todo)}
+                    data-testid={`todo-edit-${todo.id}`}
+                  >
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    edge="end"
+                    aria-label="删除"
+                    onClick={() => handleDelete(todo.id)}
+                    data-testid={`todo-delete-${todo.id}`}
+                  >
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
+                </>
               }
               data-testid={`todo-item-${todo.id}`}
             >
@@ -214,6 +278,51 @@ export default function TodoView() {
           ))}
         </List>
       )}
+
+      {/* 编辑弹窗 */}
+      <Dialog open={editing !== null} onClose={closeEdit} data-testid="todo-edit-dialog">
+        <DialogTitle>编辑待办</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1, minWidth: 300 }}>
+            <TextField
+              size="small"
+              label="标题"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              inputProps={{ 'data-testid': 'todo-edit-title' }}
+            />
+            <TextField
+              size="small"
+              type="date"
+              label="截止日期"
+              value={editDueDate}
+              onChange={(e) => setEditDueDate(e.target.value)}
+              inputProps={{ 'data-testid': 'todo-edit-due' }}
+            />
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              value={editPriority}
+              onChange={(_, v: TodoPriority | null) => v !== null && setEditPriority(v)}
+              data-testid="todo-edit-priority"
+            >
+              {PRIORITY_OPTIONS.map((o) => (
+                <ToggleButton key={o.value} value={o.value} data-testid={`edit-priority-${o.value}`}>
+                  {o.label}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeEdit} data-testid="todo-edit-cancel">
+            取消
+          </Button>
+          <Button variant="contained" onClick={handleSaveEdit} data-testid="todo-edit-save">
+            保存
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

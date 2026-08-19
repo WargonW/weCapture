@@ -300,7 +300,7 @@ Idle ──start──▶ Recording ──stop──▶ Stopped ──reset─�
 
 | 环境 | 计数 | 说明 |
 |------|------|------|
-| 前端 `npm test` | 209 passed（18 文件） | Vitest + RTL + jsdom |
+| 前端 `npm test` | 211 passed（18 文件） | Vitest + RTL + jsdom |
 | 后端 `cargo test` | 174 passed | 含 mockall |
 | 构建 | `npm run build` / `cargo build` 通过 | 含 `--features audio` |
 
@@ -817,10 +817,12 @@ Idle ──start──▶ Recording ──stop──▶ Stopped ──reset─�
   - 每项勾选 Checkbox 切换完成（完成显示删除线）
   - 删除按钮移除
   - 新建优先级选择（低/中/高 ToggleButtonGroup）
+  - 新建可选截止日期（date 输入框）
+  - 编辑弹窗：修改标题/优先级/截止日期（复用 update_todo）
 - TDD: service + 视图交互测试
 
 **验证结果**
-- npm test: 209 passed（18 文件）
+- npm test: 211 passed（18 文件）
 - cargo test: 174 passed
 - npm run build: 成功
 
