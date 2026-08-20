@@ -1,9 +1,8 @@
 name: Build Windows Portable
 
 on:
+  # 仅手动触发（Actions 页 → Run workflow），避免每次 push 消耗构建分钟
   workflow_dispatch:
-  push:
-    branches: [master]
 
 jobs:
   build-portable:
